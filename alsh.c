@@ -165,6 +165,7 @@ void executeCommand(char *buffer) {
         if (stdOutStatus[0]) {
             dup2(stdOutStatus[1], STDOUT_FILENO);
         }
+        free(stdInStatus);
         free(stdOutStatus);
         free(tempBuffer);
         free(tokens);
