@@ -20,6 +20,33 @@ char* getCurrentWorkingDirectory() {
 }
 
 /**
+ * Removes the newline character from the end of a string if it exists
+*/
+void removeNewlineIfExists(char *buffer) {
+    int len = strlen(buffer);
+    if (buffer[len - 1] == '\n') {
+        buffer[len - 1] = '\0';
+    }
+}
+
+/**
+ * Removes the first occurence of str from tokens
+*/
+char** removeString(char **tokens, char *str) {
+    char **newTokens = malloc(sizeof(char*) * COMMAND_MAX_TOKENS);
+    int i = 0;
+    while (tokens[i] != NULL) {
+        if (strcmp(tokens[i], str) == 0) {
+            newTokens[i] = NULL;
+            break;
+        }
+        newTokens[i] = tokens[i];
+        i++;
+    }
+    return newTokens;
+}
+
+/**
  * Splits a string from the first occurence of delim
  * Remember to free() the returned string
 */
@@ -39,12 +66,11 @@ char** split(char *buffer, char *delim) {
  * Trims whitespace from the beginning and end of a string
 */
 void trimWhitespaceFromEnds(char *buffer) {
-    int len = strlen(buffer);
     int i = 0;
     while (buffer[i] == ' ') {
         i++;
     }
-    int j = len - 1;
+    int j = strlen(buffer) - 1;
     while (buffer[j] == ' ') {
         j--;
     }
@@ -112,23 +138,6 @@ int* handleRedirectStdin(char *buffer) {
         status = calloc(1, sizeof(int));
     }
     return status;
-}
-
-/**
- * Removes the first occurence of str from tokens
-*/
-char** removeString(char **tokens, char *str) {
-    char **newTokens = malloc(sizeof(char*) * COMMAND_MAX_TOKENS);
-    int i = 0;
-    while (tokens[i] != NULL) {
-        if (strcmp(tokens[i], str) == 0) {
-            newTokens[i] = NULL;
-            break;
-        }
-        newTokens[i] = tokens[i];
-        i++;
-    }
-    return newTokens;
 }
 
 void executeCommand(char *buffer) {
@@ -229,13 +238,6 @@ void printPrompt() {
     char *cwd = getCurrentWorkingDirectory();
     printf("%s:%s:%s> ", SHELL_NAME, cwd, getuid() == 0 ? "#" : "$");
     free(cwd);
-}
-
-void removeNewlineIfExists(char *buffer) {
-    int len = strlen(buffer);
-    if (buffer[len - 1] == '\n') {
-        buffer[len - 1] = '\0';
-    }
 }
 
 int main(int argc, char *argv[]) {
