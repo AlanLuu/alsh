@@ -6,7 +6,7 @@
 #include <unistd.h>
 
 #define COMMAND_BUFFER_SIZE 4096
-#define COMMAND_MAX_ARGS 100
+#define COMMAND_MAX_TOKENS 100
 #define SHELL_NAME "alsh"
 
 /**
@@ -25,7 +25,7 @@ char* getCurrentWorkingDirectory() {
 */
 char** split(char *buffer, char *delim) {
     char *token = strtok(buffer, delim);
-    char **tokens = malloc(sizeof(char*) * COMMAND_MAX_ARGS);
+    char **tokens = malloc(sizeof(char*) * COMMAND_MAX_TOKENS);
     int i = 0;
     while (token != NULL) {
         tokens[i++] = token;
@@ -118,7 +118,7 @@ int* handleRedirectStdin(char *buffer) {
  * Removes the first occurence of str from tokens
 */
 char** removeString(char **tokens, char *str) {
-    char **newTokens = malloc(sizeof(char*) * COMMAND_MAX_ARGS);
+    char **newTokens = malloc(sizeof(char*) * COMMAND_MAX_TOKENS);
     int i = 0;
     while (tokens[i] != NULL) {
         if (strcmp(tokens[i], str) == 0) {
