@@ -59,18 +59,19 @@ void trimWhitespaceFromEnds(char *buffer) {
 
 int* handleRedirectStdout(char *buffer) {
     char *redirectChr = strchr(buffer, '>');
-    int oldStdin = dup(STDIN_FILENO);
     int *status;
     if (redirectChr != NULL) {
-        status = calloc(2, sizeof(int));
+        int oldStdout = dup(STDOUT_FILENO);
+        status = malloc(sizeof(int) * 2);
         status[0] = true;
-        status[1] = oldStdin;
+        status[1] = oldStdout;
 
         char *tempBuffer = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
         strcpy(tempBuffer, buffer);
         char **tokens = split(tempBuffer, ">");
         char *filename = tokens[1];
         trimWhitespaceFromEnds(filename);
+
         FILE *fp = fopen(filename, "w");
         dup2(fileno(fp), STDOUT_FILENO);
         fclose(fp);
@@ -84,21 +85,27 @@ int* handleRedirectStdout(char *buffer) {
 
 int* handleRedirectStdin(char *buffer) {
     char *redirectChr = strchr(buffer, '<');
-    int oldStdin = dup(STDIN_FILENO);
     int *status;
     if (redirectChr != NULL) {
-        status = calloc(2, sizeof(int));
-        status[0] = true;
-        status[1] = oldStdin;
-
         char *tempBuffer = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
         strcpy(tempBuffer, buffer);
         char **tokens = split(tempBuffer, "<");
-        char *filename = tokens[1];
-        trimWhitespaceFromEnds(filename);
-        FILE *fp = fopen(filename, "r");
-        dup2(fileno(fp), STDIN_FILENO);
-        fclose(fp);
+        char *fileName = tokens[1];
+        trimWhitespaceFromEnds(fileName);
+
+        FILE *fp = fopen(fileName, "r");
+        if (fp == NULL) {
+            printf("%s: %s: No such file or directory\n", SHELL_NAME, fileName);
+            status = malloc(sizeof(int));
+            status[0] = -1;
+        } else {
+            int oldStdin = dup(STDIN_FILENO);
+            dup2(fileno(fp), STDIN_FILENO);
+            fclose(fp);
+            status = malloc(sizeof(int) * 2);
+            status[0] = true;
+            status[1] = oldStdin;
+        }
         free(tempBuffer);
         free(tokens);
     } else {
@@ -146,6 +153,12 @@ void executeCommand(char *buffer) {
         return;
     }
     int *stdInStatus = handleRedirectStdin(buffer);
+    if (stdInStatus[0] == -1) {
+        free(stdInStatus);
+        free(tempBuffer);
+        free(tokens);
+        return;
+    }
     int *stdOutStatus = handleRedirectStdout(buffer);
     pid_t cid = fork();
     if (cid == 0) {
