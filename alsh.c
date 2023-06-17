@@ -200,28 +200,33 @@ void processPrompt(char *buffer) {
     if (pipeChr != NULL) {
         char *tempBuffer = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
         strcpy(tempBuffer, buffer);
-        char **tokens = split(tempBuffer, "|");
 
-        int stdin_copy = dup(STDIN_FILENO);
-        int stdout_copy = dup(STDOUT_FILENO);
-        int fd[2];
-        pipe(fd);
-        pid_t cid = fork();
-        if (cid == 0) {
-            dup2(fd[1], STDOUT_FILENO);
-            close(fd[0]);
-            close(fd[1]);
-            executeCommand(tokens[0]);
-            exit(0);
-        } else {
-            dup2(fd[0], STDIN_FILENO);
-            close(fd[0]);
-            close(fd[1]);
-            executeCommand(tokens[1]);
-            wait(NULL);
+        char **tokens = split(tempBuffer, "|");
+        int tokensCount = 0;
+        while (tokens[tokensCount] != NULL) {
+            trimWhitespaceFromEnds(tokens[tokensCount]);
+            tokensCount++;
         }
-        dup2(stdin_copy, STDIN_FILENO);
-        dup2(stdout_copy, STDOUT_FILENO);
+        int terminal_stdin = dup(STDIN_FILENO);
+        int terminal_stdout = dup(STDOUT_FILENO);
+        int fd[2];
+        int i;
+        for (i = 0; i < tokensCount - 1; i++) {
+            pipe(fd);
+            pid_t cid = fork();
+            if (cid == 0) {
+                dup2(fd[1], STDOUT_FILENO);
+                close(fd[0]);
+                executeCommand(tokens[i]);
+                exit(0);
+            }
+            wait(NULL);
+            dup2(fd[0], STDIN_FILENO);
+            close(fd[1]);
+        }
+        executeCommand(tokens[i]);
+        dup2(terminal_stdout, STDOUT_FILENO);
+        dup2(terminal_stdin, STDIN_FILENO);
         free(tempBuffer);
         free(tokens);
         return;
