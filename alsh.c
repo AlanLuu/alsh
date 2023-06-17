@@ -7,6 +7,8 @@
 
 #define COMMAND_BUFFER_SIZE 4096
 #define COMMAND_MAX_TOKENS 100
+#define COMMENT_CHAR '#'
+#define EXIT_COMMAND "exit"
 #define SHELL_NAME "alsh"
 
 /**
@@ -194,6 +196,12 @@ void executeCommand(char *buffer) {
 }
 
 void processPrompt(char *buffer) {
+    //Check for comments
+    char *commentChr = strchr(buffer, COMMENT_CHAR);
+    if (commentChr != NULL && *(commentChr - 1) == ' ') {
+        *commentChr = '\0';
+    }
+
     //Check for pipes
     char *pipeChr = strchr(buffer, '|');
     if (pipeChr != NULL) {
@@ -235,7 +243,7 @@ void processPrompt(char *buffer) {
 
 void printIntro(void) {
     printf("Welcome to %s!\n", SHELL_NAME);
-    printf("Type 'exit' to exit.\n\n");
+    printf("Type '%s' to exit.\n\n", EXIT_COMMAND);
 }
 
 void printPrompt(void) {
@@ -254,22 +262,32 @@ int main(int argc, char *argv[]) {
         }
         while (fgets(buffer, COMMAND_BUFFER_SIZE, fp) != NULL) {
             removeNewlineIfExists(buffer);
-            if (strlen(buffer) > 0) processPrompt(buffer);
+            trimWhitespaceFromEnds(buffer);
+            if (*buffer != COMMENT_CHAR && strlen(buffer) > 0) {
+                processPrompt(buffer);
+            }
         }
         fclose(fp);
     } else {
         bool stdinFromTerminal = isatty(STDIN_FILENO);
+        bool typedExitCommand = false;
         if (stdinFromTerminal) {
             printIntro();
             printPrompt();
         }
         while (fgets(buffer, COMMAND_BUFFER_SIZE, stdin) != NULL) {
             removeNewlineIfExists(buffer);
-            if (strcmp(buffer, "exit") == 0) break;
-            if (strlen(buffer) > 0) processPrompt(buffer);
+            trimWhitespaceFromEnds(buffer);
+            if (*buffer != COMMENT_CHAR && strlen(buffer) > 0) {
+                if (strcmp(buffer, EXIT_COMMAND) == 0) {
+                    typedExitCommand = true;
+                    break;
+                }
+                processPrompt(buffer);
+            }
             if (stdinFromTerminal) printPrompt();
         }
-        if (stdinFromTerminal) printf("\n");
+        if (stdinFromTerminal && !typedExitCommand) printf("\n");
     }
     return 0;
 }
