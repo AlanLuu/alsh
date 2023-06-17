@@ -178,20 +178,19 @@ void executeCommand(char *buffer) {
             execvp(tokens[0], tokens);
         }
         printf("%s: command not found\n", tokens[0]);
-        exit(0);
-    } else {
-        wait(NULL);
-        if (stdInStatus[0]) {
-            dup2(stdInStatus[1], STDIN_FILENO);
-        }
-        if (stdOutStatus[0]) {
-            dup2(stdOutStatus[1], STDOUT_FILENO);
-        }
-        free(stdInStatus);
-        free(stdOutStatus);
-        free(tempBuffer);
-        free(tokens);
+        exit(1);
     }
+    wait(NULL);
+    if (stdInStatus[0]) {
+        dup2(stdInStatus[1], STDIN_FILENO);
+    }
+    if (stdOutStatus[0]) {
+        dup2(stdOutStatus[1], STDOUT_FILENO);
+    }
+    free(stdInStatus);
+    free(stdOutStatus);
+    free(tempBuffer);
+    free(tokens);
 }
 
 void processPrompt(char *buffer) {
