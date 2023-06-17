@@ -12,7 +12,7 @@
 /**
  * Remember to free() the returned string
 */
-char* getCurrentWorkingDirectory() {
+char* getCurrentWorkingDirectory(void) {
     int cwdSize = COMMAND_BUFFER_SIZE;
     char *cwd = malloc(sizeof(char) * cwdSize);
     getcwd(cwd, cwdSize);
@@ -229,12 +229,12 @@ void processPrompt(char *buffer) {
     executeCommand(buffer);
 }
 
-void printIntro() {
+void printIntro(void) {
     printf("Welcome to %s!\n", SHELL_NAME);
     printf("Type 'exit' to exit.\n\n");
 }
 
-void printPrompt() {
+void printPrompt(void) {
     char *cwd = getCurrentWorkingDirectory();
     printf("%s:%s:%s> ", SHELL_NAME, cwd, getuid() == 0 ? "#" : "$");
     free(cwd);
