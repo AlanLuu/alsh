@@ -36,14 +36,12 @@ void removeNewlineIfExists(char *buffer) {
 */
 char** removeString(char **tokens, char *str) {
     char **newTokens = malloc(sizeof(char*) * COMMAND_MAX_TOKENS);
-    int i = 0;
-    while (tokens[i] != NULL) {
+    for (int i = 0; tokens[i] != NULL; i++) {
         if (strcmp(tokens[i], str) == 0) {
             newTokens[i] = NULL;
             break;
         }
         newTokens[i] = tokens[i];
-        i++;
     }
     return newTokens;
 }
@@ -129,11 +127,11 @@ int* handleRedirectStdin(char *buffer) {
         } else {
             int oldStdin = dup(STDIN_FILENO);
             dup2(fileno(fp), STDIN_FILENO);
-            fclose(fp);
             status = malloc(sizeof(int) * 2);
             status[0] = true;
             status[1] = oldStdin;
         }
+        fclose(fp);
         free(tempBuffer);
         free(tokens);
     } else {
@@ -195,14 +193,7 @@ void executeCommand(char *buffer) {
     free(tokens);
 }
 
-void processPrompt(char *buffer) {
-    //Check for comments
-    char *commentChr = strchr(buffer, COMMENT_CHAR);
-    if (commentChr != NULL && *(commentChr - 1) == ' ') {
-        *commentChr = '\0';
-    }
-
-    //Check for pipes
+void executeCommandsAndPipes(char *buffer) {
     char *pipeChr = strchr(buffer, '|');
     if (pipeChr != NULL) {
         char *tempBuffer = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
@@ -239,6 +230,32 @@ void processPrompt(char *buffer) {
         return;
     }
     executeCommand(buffer);
+}
+
+void processPrompt(char *buffer) {
+    //Check for comments
+    char *commentChr = strchr(buffer, COMMENT_CHAR);
+    if (commentChr != NULL && *(commentChr - 1) == ' ') {
+        *commentChr = '\0';
+    }
+
+    //Check for semicolon operators
+    char *semicolonChr = strchr(buffer, ';');
+    if (semicolonChr != NULL) {
+        char *tempBuffer = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
+        strcpy(tempBuffer, buffer);
+
+        char **tokens = split(tempBuffer, ";");
+        for (int i = 0; tokens[i] != NULL; i++) {
+            trimWhitespaceFromEnds(tokens[i]);
+            executeCommandsAndPipes(tokens[i]);
+        }
+        free(tempBuffer);
+        free(tokens);
+        return;
+    }
+
+    executeCommandsAndPipes(buffer);
 }
 
 void printIntro(void) {
