@@ -127,11 +127,11 @@ int* handleRedirectStdin(char *buffer) {
         } else {
             int oldStdin = dup(STDIN_FILENO);
             dup2(fileno(fp), STDIN_FILENO);
+            fclose(fp);
             status = malloc(sizeof(int) * 2);
             status[0] = true;
             status[1] = oldStdin;
         }
-        fclose(fp);
         free(tempBuffer);
         free(tokens);
     } else {
