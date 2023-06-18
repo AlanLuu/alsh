@@ -145,7 +145,18 @@ void executeCommand(char *buffer) {
     strcpy(tempBuffer, buffer);
     char **tokens = split(tempBuffer, " ");
 
-    if (strcmp(tokens[0], "cd") == 0) { //Change directory
+    //Add --color=auto to ls command
+    if (strcmp(tokens[0], "ls") == 0) {
+        int i = 0;
+        while (tokens[i] != NULL) {
+            i++;
+        }
+        tokens[i++] = "--color=auto";
+        tokens[i] = NULL;
+    }
+
+    //Implement cd command
+    if (strcmp(tokens[0], "cd") == 0) {
         if (tokens[1] == NULL) { //No argument, change to home directory
             chdir(getenv("HOME"));
         } else if (strcmp(tokens[1], "..") == 0) { //Go up one directory
@@ -161,6 +172,7 @@ void executeCommand(char *buffer) {
         free(tokens);
         return;
     }
+
     int *stdInStatus = handleRedirectStdin(buffer);
     if (stdInStatus[0] == -1) {
         free(stdInStatus);
