@@ -282,7 +282,7 @@ void printPrompt(void) {
 }
 
 int main(int argc, char *argv[]) {
-    char buffer[COMMAND_BUFFER_SIZE];
+    char *buffer = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
     if (argc > 1) {
         FILE *fp = fopen(argv[1], "r");
         if (fp == NULL) {
@@ -318,5 +318,6 @@ int main(int argc, char *argv[]) {
         }
         if (stdinFromTerminal && !typedExitCommand) printf("\n");
     }
+    free(buffer);
     return 0;
 }
