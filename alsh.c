@@ -55,13 +55,14 @@ char** split(char *buffer, char *delim) {
  * Trims whitespace from the beginning and end of a string
 */
 void trimWhitespaceFromEnds(char *buffer) {
-    if (strlen(buffer) == 0) return;
-    
+    int len = strlen(buffer);
+    if (len == 0) return;
+
     int i = 0;
     while (buffer[i] == ' ') {
         i++;
     }
-    int j = strlen(buffer) - 1;
+    int j = len - 1;
     while (buffer[j] == ' ') {
         j--;
     }
