@@ -11,15 +11,7 @@
 #define EXIT_COMMAND "exit"
 #define SHELL_NAME "alsh"
 
-/**
- * Remember to free() the returned string
-*/
-char* getCurrentWorkingDirectory(void) {
-    int cwdSize = COMMAND_BUFFER_SIZE;
-    char *cwd = malloc(sizeof(char) * cwdSize);
-    getcwd(cwd, cwdSize);
-    return cwd;
-}
+char cwd[COMMAND_BUFFER_SIZE]; //Current working directory
 
 /**
  * Removes the newline character from the end of a string if it exists
@@ -160,16 +152,15 @@ void executeCommand(char *buffer) {
 
     //Implement cd command
     if (strcmp(tokens[0], "cd") == 0) {
-        if (tokens[1] == NULL) { //No argument, change to home directory
+        char *arg = tokens[1];
+        if (arg == NULL) { //No argument, change to home directory
             chdir(getenv("HOME"));
-        } else if (strcmp(tokens[1], "..") == 0) { //Go up one directory
-            char *cwd = getCurrentWorkingDirectory();
-            char *lastSlash = strrchr(cwd, '/');
-            *lastSlash = '\0'; //Remove last slash and everything after it
+        } else if (strcmp(arg, "..") == 0) { //Go up one directory
+            char *lastSlashPos = strrchr(cwd, '/');
+            *(lastSlashPos + 1) = '\0';
             chdir(cwd);
-            free(cwd);
-        } else if (chdir(tokens[1]) != 0) {
-            printf("cd: %s: No such file or directory\n", tokens[1]);
+        } else if (chdir(arg) != 0) { //Change to specified directory
+            printf("cd: %s: No such file or directory\n", arg);
         }
         free(tempBuffer);
         free(tokens);
@@ -276,7 +267,10 @@ void printIntro(void) {
 }
 
 void printPrompt(void) {
-    char *cwd = getCurrentWorkingDirectory();
+    if (getcwd(cwd, COMMAND_BUFFER_SIZE) == NULL) {
+        printf("Error getting current working directory, exiting shell...\n");
+        exit(1);
+    }
     bool isRootUser = getuid() == 0;
     if (isRootUser) {
         //Print red prompt
@@ -285,7 +279,6 @@ void printPrompt(void) {
         //Print regular prompt
         printf("%s:\e[1;34m%s\e[0m$ ", SHELL_NAME, cwd);
     }
-    free(cwd);
 }
 
 int main(int argc, char *argv[]) {
