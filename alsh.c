@@ -32,22 +32,19 @@ void removeNewlineIfExists(char *buffer) {
 }
 
 /**
- * Removes the first occurence of str from tokens
+ * Removes the first occurrence of str from tokens if it exists
 */
-char** removeString(char **tokens, char *str) {
-    char **newTokens = malloc(sizeof(char*) * COMMAND_MAX_TOKENS);
+void removeStrFromArrIfExists(char **tokens, char *str) {
     for (int i = 0; tokens[i] != NULL; i++) {
         if (strcmp(tokens[i], str) == 0) {
-            newTokens[i] = NULL;
+            tokens[i] = NULL;
             break;
         }
-        newTokens[i] = tokens[i];
     }
-    return newTokens;
 }
 
 /**
- * Splits a string from the first occurence of delim
+ * Splits a string from the first occurrence of delim
  * Remember to free() the returned string
 */
 char** split(char *buffer, char *delim) {
@@ -84,9 +81,9 @@ void trimWhitespaceFromEnds(char *buffer) {
 }
 
 int* handleRedirectStdout(char *buffer) {
-    char *redirectChr = strchr(buffer, '>');
+    char *stdoutRedirectChr = strchr(buffer, '>');
     int *status;
-    if (redirectChr != NULL) {
+    if (stdoutRedirectChr != NULL) {
         int oldStdout = dup(STDOUT_FILENO);
         status = malloc(sizeof(int) * 2);
         status[0] = true;
@@ -110,9 +107,9 @@ int* handleRedirectStdout(char *buffer) {
 }
 
 int* handleRedirectStdin(char *buffer) {
-    char *redirectChr = strchr(buffer, '<');
+    char *stdinRedirectChr = strchr(buffer, '<');
     int *status;
-    if (redirectChr != NULL) {
+    if (stdinRedirectChr != NULL) {
         char *tempBuffer = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
         strcpy(tempBuffer, buffer);
         char **tokens = split(tempBuffer, "<");
@@ -121,15 +118,21 @@ int* handleRedirectStdin(char *buffer) {
 
         FILE *fp = fopen(fileName, "r");
         if (fp == NULL) {
-            printf("%s: %s: No such file or directory\n", SHELL_NAME, fileName);
+            char *stdoutRedirectChr = strchr(buffer, '>');
             status = malloc(sizeof(int));
-            status[0] = -1;
+            if (stdoutRedirectChr != NULL) {
+                handleRedirectStdout(buffer);
+                *status = true;
+            } else {
+                printf("%s: %s: No such file or directory\n", SHELL_NAME, fileName);
+                *status = -1;
+            }
         } else {
             int oldStdin = dup(STDIN_FILENO);
             dup2(fileno(fp), STDIN_FILENO);
             fclose(fp);
             status = malloc(sizeof(int) * 2);
-            status[0] = true;
+            *status = true;
             status[1] = oldStdin;
         }
         free(tempBuffer);
@@ -173,34 +176,31 @@ void executeCommand(char *buffer) {
         return;
     }
 
-    int *stdInStatus = handleRedirectStdin(buffer);
-    if (stdInStatus[0] == -1) {
-        free(stdInStatus);
+    int *stdinStatus = handleRedirectStdin(buffer);
+    if (*stdinStatus == -1) {
+        free(stdinStatus);
         free(tempBuffer);
         free(tokens);
         return;
     }
-    int *stdOutStatus = handleRedirectStdout(buffer);
+    int *stdoutStatus = handleRedirectStdout(buffer);
     pid_t cid = fork();
     if (cid == 0) {
-        if (stdInStatus[0] || stdOutStatus[0]) {
-            char **newTokens = removeString(tokens, stdInStatus[0] ? "<" : ">");
-            execvp(newTokens[0], newTokens);
-        } else {
-            execvp(tokens[0], tokens);
-        }
+        removeStrFromArrIfExists(tokens, "<");
+        removeStrFromArrIfExists(tokens, ">");
+        execvp(tokens[0], tokens);
         printf("%s: command not found\n", tokens[0]);
         exit(1);
     }
     wait(NULL);
-    if (stdInStatus[0]) {
-        dup2(stdInStatus[1], STDIN_FILENO);
+    if (*stdinStatus) {
+        dup2(stdinStatus[1], STDIN_FILENO);
     }
-    if (stdOutStatus[0]) {
-        dup2(stdOutStatus[1], STDOUT_FILENO);
+    if (*stdoutStatus) {
+        dup2(stdoutStatus[1], STDOUT_FILENO);
     }
-    free(stdInStatus);
-    free(stdOutStatus);
+    free(stdinStatus);
+    free(stdoutStatus);
     free(tempBuffer);
     free(tokens);
 }
@@ -277,7 +277,14 @@ void printIntro(void) {
 
 void printPrompt(void) {
     char *cwd = getCurrentWorkingDirectory();
-    printf("%s:%s:%s> ", SHELL_NAME, cwd, getuid() == 0 ? "#" : "$");
+    bool isRootUser = getuid() == 0;
+    if (isRootUser) {
+        //Print red prompt
+        printf("\033[1;31m%s-root:\e[1;34m%s\e[0m# ", SHELL_NAME, cwd);
+    } else {
+        //Print regular prompt
+        printf("%s:\e[1;34m%s\e[0m$ ", SHELL_NAME, cwd);
+    }
     free(cwd);
 }
 
