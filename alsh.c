@@ -53,10 +53,11 @@ char** split(char *buffer, char *delim) {
 
 /**
  * Trims whitespace from the beginning and end of a string
+ * Returns false if the string is empty, true otherwise
 */
-void trimWhitespaceFromEnds(char *buffer) {
+bool trimWhitespaceFromEnds(char *buffer) {
     size_t len = strlen(buffer);
-    if (len == 0) return;
+    if (len == 0) return false;
 
     size_t i = 0;
     while (buffer[i] == ' ') {
@@ -73,6 +74,7 @@ void trimWhitespaceFromEnds(char *buffer) {
         k++;
     }
     buffer[k] = '\0';
+    return true;
 }
 
 int* handleRedirectStdout(char *buffer) {
@@ -294,8 +296,8 @@ int main(int argc, char *argv[]) {
         }
         while (fgets(buffer, COMMAND_BUFFER_SIZE, fp) != NULL) {
             removeNewlineIfExists(buffer);
-            trimWhitespaceFromEnds(buffer);
-            if (*buffer != COMMENT_CHAR && strlen(buffer) > 0) {
+            bool trimSuccess = trimWhitespaceFromEnds(buffer);
+            if (*buffer != COMMENT_CHAR && trimSuccess) {
                 processPrompt(buffer);
             }
         }
@@ -309,8 +311,8 @@ int main(int argc, char *argv[]) {
         }
         while (fgets(buffer, COMMAND_BUFFER_SIZE, stdin) != NULL) {
             removeNewlineIfExists(buffer);
-            trimWhitespaceFromEnds(buffer);
-            if (*buffer != COMMENT_CHAR && strlen(buffer) > 0) {
+            bool trimSuccess = trimWhitespaceFromEnds(buffer);
+            if (*buffer != COMMENT_CHAR && trimSuccess) {
                 if (strcmp(buffer, EXIT_COMMAND) == 0) {
                     typedExitCommand = true;
                     break;
