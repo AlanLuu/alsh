@@ -17,7 +17,7 @@ char cwd[COMMAND_BUFFER_SIZE]; //Current working directory
  * Removes the newline character from the end of a string if it exists
 */
 void removeNewlineIfExists(char *buffer) {
-    int len = strlen(buffer);
+    size_t len = strlen(buffer);
     if (buffer[len - 1] == '\n') {
         buffer[len - 1] = '\0';
     }
@@ -55,14 +55,14 @@ char** split(char *buffer, char *delim) {
  * Trims whitespace from the beginning and end of a string
 */
 void trimWhitespaceFromEnds(char *buffer) {
-    int len = strlen(buffer);
+    size_t len = strlen(buffer);
     if (len == 0) return;
 
-    int i = 0;
+    size_t i = 0;
     while (buffer[i] == ' ') {
         i++;
     }
-    int j = len - 1;
+    size_t j = len - 1;
     while (buffer[j] == ' ') {
         j--;
     }
@@ -277,10 +277,10 @@ void printPrompt(void) {
     bool isRootUser = getuid() == 0;
     if (isRootUser) {
         //Print red prompt
-        printf("\033[1;31m%s-root:\e[1;34m%s\e[0m# ", SHELL_NAME, cwd);
+        printf("\033[1;31m%s-root:\033[1;34m%s\033[0m# ", SHELL_NAME, cwd);
     } else {
         //Print regular prompt
-        printf("%s:\e[1;34m%s\e[0m$ ", SHELL_NAME, cwd);
+        printf("%s:\033[1;34m%s\033[0m$ ", SHELL_NAME, cwd);
     }
 }
 
