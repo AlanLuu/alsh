@@ -1,5 +1,5 @@
 main_program_name=alsh
-flags=-Wall -Wextra -Wpedantic -Werror -Wshadow -Wformat=2 -Wconversion -Wunused-parameter -fsanitize=address,undefined
+flags=-Wall -Wextra -pedantic-errors -Wshadow -Wformat=2 -Wconversion -Wunused-parameter -fsanitize=address,undefined
 
 $(main_program_name): $(main_program_name).c
 	cc $(flags) -o $(main_program_name) $(main_program_name).c
