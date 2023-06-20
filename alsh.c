@@ -132,7 +132,7 @@ int* handleRedirectStdin(char *buffer) {
                 handleRedirectStdout(buffer);
                 *status = true;
             } else {
-                printf("%s: %s: No such file or directory\n", SHELL_NAME, fileName);
+                fprintf(stderr, "%s: %s: No such file or directory\n", SHELL_NAME, fileName);
                 *status = -1;
             }
         } else {
@@ -176,7 +176,7 @@ void executeCommand(char *buffer) {
             *(lastSlashPos + 1) = '\0';
             chdir(cwd);
         } else if (chdir(arg) != 0) { //Change to specified directory
-            printf("cd: %s: No such file or directory\n", arg);
+            fprintf(stderr, "cd: %s: No such file or directory\n", arg);
         }
         free(tempBuffer);
         free(tokens);
@@ -198,7 +198,7 @@ void executeCommand(char *buffer) {
             removeStrFromArrIfExists(tokens, strsToRemove[i]);
         }
         execvp(tokens[0], tokens);
-        printf("%s: command not found\n", tokens[0]);
+        fprintf(stderr, "%s: command not found\n", tokens[0]);
         exit(1);
     }
     wait(NULL);
@@ -286,7 +286,7 @@ void printIntro(void) {
 
 void printPrompt(void) {
     if (getcwd(cwd, COMMAND_BUFFER_SIZE) == NULL) {
-        printf("Error getting current working directory, exiting shell...\n");
+        fprintf(stderr, "Error getting current working directory, exiting shell...\n");
         exit(1);
     }
     bool isRootUser = getuid() == 0;
@@ -304,7 +304,7 @@ int main(int argc, char *argv[]) {
     if (argc > 1) {
         FILE *fp = fopen(argv[1], "r");
         if (fp == NULL) {
-            printf("%s: %s: No such file or directory\n", SHELL_NAME, argv[1]);
+            fprintf(stderr, "%s: %s: No such file or directory\n", SHELL_NAME, argv[1]);
             exit(1);
         }
         while (fgets(buffer, COMMAND_BUFFER_SIZE, fp) != NULL) {
