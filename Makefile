@@ -1,12 +1,11 @@
 main_program_name=alsh
-flags=-Wall -Wextra -pedantic-errors -Wshadow -Wformat=2 -Wconversion -Wunused-parameter -fsanitize=address,undefined
+flags=-Wall -Wextra -pedantic-errors -Wshadow -Wformat=2 -Wconversion -Wunused-parameter
 
 $(main_program_name): $(main_program_name).c
 	cc $(flags) -o $(main_program_name) $(main_program_name).c
 
 debug: $(main_program_name).c
-	cc $(flags) -g -o $(main_program_name) $(main_program_name).c
-	gdb $(main_program_name)
+	cc -g -o $(main_program_name) $(main_program_name).c
 
 run: $(main_program_name)
 	./$(main_program_name)
