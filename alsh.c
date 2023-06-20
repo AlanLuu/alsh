@@ -88,13 +88,24 @@ int* handleRedirectStdout(char *buffer) {
 
         char *tempBuffer = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
         strcpy(tempBuffer, buffer);
-        char **tokens = split(tempBuffer, ">");
-        char *filename = tokens[1];
-        trimWhitespaceFromEnds(filename);
 
-        FILE *fp = fopen(filename, "w");
+        char *splitStr, *fopenMode;
+        if (*(stdoutRedirectChr + 1) == '>') {
+            splitStr = ">>";
+            fopenMode = "a";
+        } else {
+            splitStr = ">";
+            fopenMode = "w";
+        }
+
+        char **tokens = split(tempBuffer, splitStr);
+        char *fileName = tokens[1];
+        trimWhitespaceFromEnds(fileName);
+
+        FILE *fp = fopen(fileName, fopenMode);
         dup2(fileno(fp), STDOUT_FILENO);
         fclose(fp);
+        
         free(tempBuffer);
         free(tokens);
     } else {
@@ -182,8 +193,10 @@ void executeCommand(char *buffer) {
     int *stdoutStatus = handleRedirectStdout(buffer);
     pid_t cid = fork();
     if (cid == 0) {
-        removeStrFromArrIfExists(tokens, "<");
-        removeStrFromArrIfExists(tokens, ">");
+        char *strsToRemove[] = {"<", ">", ">>"};
+        for (size_t i = 0; i < sizeof(strsToRemove) / sizeof(*strsToRemove); i++) {
+            removeStrFromArrIfExists(tokens, strsToRemove[i]);
+        }
         execvp(tokens[0], tokens);
         printf("%s: command not found\n", tokens[0]);
         exit(1);
