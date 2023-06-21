@@ -1,3 +1,4 @@
+#include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,7 +12,13 @@
 #define EXIT_COMMAND "exit"
 #define SHELL_NAME "alsh"
 
-char cwd[COMMAND_BUFFER_SIZE]; //Current working directory
+static char cwd[COMMAND_BUFFER_SIZE]; //Current working directory
+
+static bool sigintReceived = false;
+void sigintHandler(int sig) {
+    (void) sig;
+    sigintReceived = true;
+}
 
 /**
  * Removes the newline character from the end of a string if it exists
@@ -201,7 +208,7 @@ void executeCommand(char *buffer) {
         fprintf(stderr, "%s: command not found\n", tokens[0]);
         exit(1);
     }
-    wait(NULL);
+    while (wait(NULL) > 0);
     if (*stdinStatus) {
         dup2(stdinStatus[1], STDIN_FILENO);
     }
@@ -239,7 +246,7 @@ void executeCommandsAndPipes(char *buffer) {
                 executeCommand(tokens[i]);
                 exit(0);
             }
-            wait(NULL);
+            while (wait(NULL) > 0);
             dup2(fd[0], STDIN_FILENO);
             close(fd[1]);
         }
@@ -321,20 +328,48 @@ int main(int argc, char *argv[]) {
         if (stdinFromTerminal) {
             printIntro();
             printPrompt();
+
+            struct sigaction sa = {
+                .sa_handler = sigintHandler
+            };
+            sigemptyset(&sa.sa_mask);
+            sigaction(SIGINT, &sa, NULL);
         }
-        while (fgets(buffer, COMMAND_BUFFER_SIZE, stdin) != NULL) {
-            removeNewlineIfExists(buffer);
-            bool trimSuccess = trimWhitespaceFromEnds(buffer);
-            if (*buffer != COMMENT_CHAR && trimSuccess) {
-                if (strcmp(buffer, EXIT_COMMAND) == 0) {
-                    typedExitCommand = true;
-                    break;
+
+        //Ignore SIGINT so that the shell doesn't exit when user sends it
+        //usually by pressing Ctrl+C
+        do {
+            sigintReceived = false;
+            while (fgets(buffer, COMMAND_BUFFER_SIZE, stdin) != NULL) {
+                removeNewlineIfExists(buffer);
+                bool trimSuccess = trimWhitespaceFromEnds(buffer);
+                if (*buffer != COMMENT_CHAR && trimSuccess) {
+                    if (strcmp(buffer, EXIT_COMMAND) == 0) {
+                        typedExitCommand = true;
+                        break;
+                    }
+                    processPrompt(buffer);
                 }
-                processPrompt(buffer);
+                if (stdinFromTerminal) {
+                    //sigintReceived will be true if the user sends SIGINT
+                    //inside the shell prompt
+                    if (sigintReceived) {
+                        sigintReceived = false;
+                        printf("\n");
+                    }
+                    printPrompt();
+                }
             }
-            if (stdinFromTerminal) printPrompt();
-        }
-        if (stdinFromTerminal && !typedExitCommand) printf("\n");
+            if (stdinFromTerminal && !typedExitCommand) {
+                printf("\n");
+
+                //sigintReceived will be true if the user sends SIGINT
+                //inside the shell prompt
+                if (sigintReceived) {
+                    printPrompt();
+                }
+            }
+        } while (sigintReceived);
     }
     free(buffer);
     return 0;
