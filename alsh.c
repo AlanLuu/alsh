@@ -7,12 +7,13 @@
 #include <unistd.h>
 
 #define COMMAND_BUFFER_SIZE 4096
-#define COMMAND_MAX_TOKENS 100
 #define COMMENT_CHAR '#'
+#define CWD_BUFFER_SIZE 4096
 #define EXIT_COMMAND "exit"
 #define SHELL_NAME "alsh"
+#define SPLIT_ARR_MAX_ELEMENTS 100
 
-static char cwd[COMMAND_BUFFER_SIZE]; //Current working directory
+static char cwd[CWD_BUFFER_SIZE]; //Current working directory
 
 static bool sigintReceived = false;
 void sigintHandler(int sig) {
@@ -48,7 +49,7 @@ void removeStrFromArrIfExists(char **tokens, char *str) {
 */
 char** split(char *buffer, char *delim) {
     char *token = strtok(buffer, delim);
-    char **tokens = malloc(sizeof(char*) * COMMAND_MAX_TOKENS);
+    char **tokens = malloc(sizeof(char*) * SPLIT_ARR_MAX_ELEMENTS);
     int i = 0;
     while (token != NULL) {
         tokens[i++] = token;
@@ -183,7 +184,7 @@ void executeCommand(char *buffer) {
             *(lastSlashPos + 1) = '\0';
             chdir(cwd);
         } else if (chdir(arg) != 0) { //Change to specified directory
-            fprintf(stderr, "cd: %s: No such file or directory\n", arg);
+            fprintf(stderr, "%s: cd: %s: No such file or directory\n", SHELL_NAME, arg);
         }
         free(tempBuffer);
         free(tokens);
@@ -292,7 +293,7 @@ void printIntro(void) {
 }
 
 void printPrompt(void) {
-    if (getcwd(cwd, COMMAND_BUFFER_SIZE) == NULL) {
+    if (getcwd(cwd, CWD_BUFFER_SIZE) == NULL) {
         fprintf(stderr, "Error getting current working directory, exiting shell...\n");
         exit(1);
     }
