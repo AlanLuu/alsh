@@ -360,14 +360,14 @@ int main(int argc, char *argv[]) {
                     printPrompt();
                 }
             }
-            if (stdinFromTerminal && !typedExitCommand) {
-                printf("\n");
 
-                //sigintReceived will be true if the user sends SIGINT
-                //inside the shell prompt
-                if (sigintReceived) {
-                    printPrompt();
-                }
+            //sigintReceived will be true if the user sends SIGINT
+            //inside the shell prompt
+            if (sigintReceived) {
+                printPrompt();
+            } else {
+                if (!typedExitCommand) printf("\n");
+                printf("exit\n");
             }
         } while (sigintReceived);
     }
