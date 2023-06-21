@@ -365,6 +365,7 @@ int main(int argc, char *argv[]) {
             //sigintReceived will be true if the user sends SIGINT
             //inside the shell prompt
             if (sigintReceived) {
+                printf("\n");
                 printPrompt();
             } else {
                 if (!typedExitCommand) printf("\n");
