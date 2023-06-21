@@ -10,10 +10,15 @@
 #define COMMENT_CHAR '#'
 #define CWD_BUFFER_SIZE 4096
 #define EXIT_COMMAND "exit"
+#define HISTORY_MAX_ELEMENTS 100
 #define SHELL_NAME "alsh"
 #define SPLIT_ARR_MAX_ELEMENTS 100
 
 static char cwd[CWD_BUFFER_SIZE]; //Current working directory
+struct {
+    char *elements[HISTORY_MAX_ELEMENTS];
+    int count;
+} history;
 
 static bool sigintReceived = false;
 void sigintHandler(int sig) {
@@ -174,7 +179,7 @@ void executeCommand(char *buffer) {
         tokens[i] = NULL;
     }
 
-    //Implement cd command
+    //cd command
     if (strcmp(tokens[0], "cd") == 0) {
         char *arg = tokens[1];
         if (arg == NULL) { //No argument, change to home directory
@@ -185,6 +190,16 @@ void executeCommand(char *buffer) {
             chdir(cwd);
         } else if (chdir(arg) != 0) { //Change to specified directory
             fprintf(stderr, "%s: cd: %s: No such file or directory\n", SHELL_NAME, arg);
+        }
+        free(tempBuffer);
+        free(tokens);
+        return;
+    }
+
+    //history command
+    if (strcmp(tokens[0], "history") == 0) {
+        for (int i = 0; i < history.count; i++) {
+            printf("    %d. %s\n", i + 1, history.elements[i]);
         }
         free(tempBuffer);
         free(tokens);
@@ -261,7 +276,7 @@ void executeCommandsAndPipes(char *buffer) {
     executeCommand(buffer);
 }
 
-void processPrompt(char *buffer) {
+void processCommand(char *buffer) {
     //Check for comments
     char *commentChr = strchr(buffer, COMMENT_CHAR);
     if (commentChr != NULL && *(commentChr - 1) == ' ') {
@@ -285,6 +300,32 @@ void processPrompt(char *buffer) {
     }
 
     executeCommandsAndPipes(buffer);
+}
+
+void addCommandToHistory(char *buffer) {
+    //Don't add "history" to history array if it's the latest command in the array
+    //and the user types "history" again
+    if (history.count > 0) {
+        char *lastElement = history.elements[history.count - 1];
+        if (strcmp(buffer, "history") == 0 && strcmp(lastElement, buffer) == 0) {
+            return;
+        }
+    }
+
+    if (history.count == HISTORY_MAX_ELEMENTS) {
+        free(history.elements[0]);
+
+        //Shift all elements to the left
+        for (int i = 0; i < HISTORY_MAX_ELEMENTS - 1; i++) {
+            history.elements[i] = history.elements[i + 1];
+        }
+        history.elements[HISTORY_MAX_ELEMENTS - 1] = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
+        strcpy(history.elements[HISTORY_MAX_ELEMENTS - 1], buffer);
+    } else {
+        history.elements[history.count] = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
+        strcpy(history.elements[history.count], buffer);
+        history.count++;
+    }
 }
 
 void printIntro(void) {
@@ -319,7 +360,7 @@ int main(int argc, char *argv[]) {
             removeNewlineIfExists(buffer);
             bool trimSuccess = trimWhitespaceFromEnds(buffer);
             if (*buffer != COMMENT_CHAR && trimSuccess) {
-                processPrompt(buffer);
+                processCommand(buffer);
             }
         }
         fclose(fp);
@@ -327,14 +368,14 @@ int main(int argc, char *argv[]) {
         bool stdinFromTerminal = isatty(STDIN_FILENO);
         bool typedExitCommand = false;
         if (stdinFromTerminal) {
-            printIntro();
-            printPrompt();
-
             struct sigaction sa = {
                 .sa_handler = sigintHandler
             };
             sigemptyset(&sa.sa_mask);
             sigaction(SIGINT, &sa, NULL);
+
+            printIntro();
+            printPrompt();
         }
 
         //Ignore SIGINT so that the shell doesn't exit when user sends it
@@ -344,12 +385,15 @@ int main(int argc, char *argv[]) {
             while (fgets(buffer, COMMAND_BUFFER_SIZE, stdin) != NULL) {
                 removeNewlineIfExists(buffer);
                 bool trimSuccess = trimWhitespaceFromEnds(buffer);
-                if (*buffer != COMMENT_CHAR && trimSuccess) {
-                    if (strcmp(buffer, EXIT_COMMAND) == 0) {
-                        typedExitCommand = true;
-                        break;
+                if (trimSuccess) {
+                    addCommandToHistory(buffer);
+                    if (*buffer != COMMENT_CHAR) {
+                        if (strcmp(buffer, EXIT_COMMAND) == 0) {
+                            typedExitCommand = true;
+                            break;
+                        }
+                        processCommand(buffer);
                     }
-                    processPrompt(buffer);
                 }
                 if (stdinFromTerminal) {
                     //sigintReceived will be true if the user sends SIGINT
@@ -372,6 +416,10 @@ int main(int argc, char *argv[]) {
                 printf("exit\n");
             }
         } while (sigintReceived);
+
+        for (int i = 0; i < history.count; i++) {
+            free(history.elements[i]);
+        }
     }
     free(buffer);
     return 0;
