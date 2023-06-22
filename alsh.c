@@ -29,10 +29,10 @@ void sigintHandler(int sig) {
 /**
  * Removes the newline character from the end of a string if it exists
 */
-void removeNewlineIfExists(char *buffer) {
-    size_t len = strlen(buffer);
-    if (buffer[len - 1] == '\n') {
-        buffer[len - 1] = '\0';
+void removeNewlineIfExists(char *str) {
+    size_t len = strlen(str);
+    if (str[len - 1] == '\n') {
+        str[len - 1] = '\0';
     }
 }
 
@@ -52,8 +52,8 @@ void removeStrFromArrIfExists(char **tokens, char *str) {
  * Splits a string from the first occurrence of delim
  * Remember to free() the returned string
 */
-char** split(char *buffer, char *delim) {
-    char *token = strtok(buffer, delim);
+char** split(char *str, char *delim) {
+    char *token = strtok(str, delim);
     char **tokens = malloc(sizeof(char*) * SPLIT_ARR_MAX_ELEMENTS);
     int i = 0;
     while (token != NULL) {
@@ -68,30 +68,30 @@ char** split(char *buffer, char *delim) {
  * Trims whitespace from the beginning and end of a string
  * Returns false if the string is empty, true otherwise
 */
-bool trimWhitespaceFromEnds(char *buffer) {
-    size_t len = strlen(buffer);
+bool trimWhitespaceFromEnds(char *str) {
+    size_t len = strlen(str);
     if (len == 0) return false;
 
     size_t i = 0;
-    while (buffer[i] == ' ') {
+    while (str[i] == ' ') {
         i++;
     }
     size_t j = len - 1;
-    while (buffer[j] == ' ') {
+    while (str[j] == ' ') {
         j--;
     }
     int k = 0;
     while (i <= j) {
-        buffer[k] = buffer[i];
+        str[k] = str[i];
         i++;
         k++;
     }
-    buffer[k] = '\0';
+    str[k] = '\0';
     return true;
 }
 
-int* handleRedirectStdout(char *buffer) {
-    char *stdoutRedirectChr = strchr(buffer, '>');
+int* handleRedirectStdout(char *cmd) {
+    char *stdoutRedirectChr = strchr(cmd, '>');
     int *status;
     if (stdoutRedirectChr != NULL) {
         int oldStdout = dup(STDOUT_FILENO);
@@ -99,8 +99,8 @@ int* handleRedirectStdout(char *buffer) {
         status[0] = true;
         status[1] = oldStdout;
 
-        char *tempBuffer = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
-        strcpy(tempBuffer, buffer);
+        char *tempCmd = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
+        strcpy(tempCmd, cmd);
 
         char *splitStr, *fopenMode;
         if (*(stdoutRedirectChr + 1) == '>') {
@@ -111,7 +111,7 @@ int* handleRedirectStdout(char *buffer) {
             fopenMode = "w";
         }
 
-        char **tokens = split(tempBuffer, splitStr);
+        char **tokens = split(tempCmd, splitStr);
         char *fileName = tokens[1];
         trimWhitespaceFromEnds(fileName);
 
@@ -119,7 +119,7 @@ int* handleRedirectStdout(char *buffer) {
         dup2(fileno(fp), STDOUT_FILENO);
         fclose(fp);
         
-        free(tempBuffer);
+        free(tempCmd);
         free(tokens);
     } else {
         status = calloc(1, sizeof(int));
@@ -127,22 +127,22 @@ int* handleRedirectStdout(char *buffer) {
     return status;
 }
 
-int* handleRedirectStdin(char *buffer) {
-    char *stdinRedirectChr = strchr(buffer, '<');
+int* handleRedirectStdin(char *cmd) {
+    char *stdinRedirectChr = strchr(cmd, '<');
     int *status;
     if (stdinRedirectChr != NULL) {
-        char *tempBuffer = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
-        strcpy(tempBuffer, buffer);
-        char **tokens = split(tempBuffer, "<");
+        char *tempCmd = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
+        strcpy(tempCmd, cmd);
+        char **tokens = split(tempCmd, "<");
         char *fileName = tokens[1];
         trimWhitespaceFromEnds(fileName);
 
         FILE *fp = fopen(fileName, "r");
         if (fp == NULL) {
-            char *stdoutRedirectChr = strchr(buffer, '>');
+            char *stdoutRedirectChr = strchr(cmd, '>');
             status = malloc(sizeof(int));
             if (stdoutRedirectChr != NULL) {
-                handleRedirectStdout(buffer);
+                handleRedirectStdout(cmd);
                 *status = true;
             } else {
                 fprintf(stderr, "%s: %s: No such file or directory\n", SHELL_NAME, fileName);
@@ -156,7 +156,7 @@ int* handleRedirectStdin(char *buffer) {
             *status = true;
             status[1] = oldStdin;
         }
-        free(tempBuffer);
+        free(tempCmd);
         free(tokens);
     } else {
         status = calloc(1, sizeof(int));
@@ -164,10 +164,10 @@ int* handleRedirectStdin(char *buffer) {
     return status;
 }
 
-void executeCommand(char *buffer) {
-    char *tempBuffer = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
-    strcpy(tempBuffer, buffer);
-    char **tokens = split(tempBuffer, " ");
+void executeCommand(char *cmd) {
+    char *tempCmd = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
+    strcpy(tempCmd, cmd);
+    char **tokens = split(tempCmd, " ");
 
     //Add --color=auto to ls command
     if (strcmp(tokens[0], "ls") == 0) {
@@ -191,7 +191,7 @@ void executeCommand(char *buffer) {
         } else if (chdir(arg) != 0) { //Change to specified directory
             fprintf(stderr, "%s: cd: %s: No such file or directory\n", SHELL_NAME, arg);
         }
-        free(tempBuffer);
+        free(tempCmd);
         free(tokens);
         return;
     }
@@ -201,19 +201,19 @@ void executeCommand(char *buffer) {
         for (int i = 0; i < history.count; i++) {
             printf("    %d. %s\n", i + 1, history.elements[i]);
         }
-        free(tempBuffer);
+        free(tempCmd);
         free(tokens);
         return;
     }
 
-    int *stdinStatus = handleRedirectStdin(buffer);
+    int *stdinStatus = handleRedirectStdin(cmd);
     if (*stdinStatus == -1) {
         free(stdinStatus);
-        free(tempBuffer);
+        free(tempCmd);
         free(tokens);
         return;
     }
-    int *stdoutStatus = handleRedirectStdout(buffer);
+    int *stdoutStatus = handleRedirectStdout(cmd);
     pid_t cid = fork();
     if (cid == 0) {
         char *strsToRemove[] = {"<", ">", ">>"};
@@ -233,17 +233,17 @@ void executeCommand(char *buffer) {
     }
     free(stdinStatus);
     free(stdoutStatus);
-    free(tempBuffer);
+    free(tempCmd);
     free(tokens);
 }
 
-void executeCommandsAndPipes(char *buffer) {
-    char *pipeChr = strchr(buffer, '|');
+void executeCommandsAndPipes(char *cmd) {
+    char *pipeChr = strchr(cmd, '|');
     if (pipeChr != NULL) {
-        char *tempBuffer = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
-        strcpy(tempBuffer, buffer);
+        char *tempCmd = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
+        strcpy(tempCmd, cmd);
 
-        char **tokens = split(tempBuffer, "|");
+        char **tokens = split(tempCmd, "|");
         int tokensCount = 0;
         while (tokens[tokensCount] != NULL) {
             trimWhitespaceFromEnds(tokens[tokensCount]);
@@ -269,45 +269,45 @@ void executeCommandsAndPipes(char *buffer) {
         executeCommand(tokens[i]);
         dup2(terminal_stdout, STDOUT_FILENO);
         dup2(terminal_stdin, STDIN_FILENO);
-        free(tempBuffer);
+        free(tempCmd);
         free(tokens);
         return;
     }
-    executeCommand(buffer);
+    executeCommand(cmd);
 }
 
-void processCommand(char *buffer) {
+void processCommand(char *cmd) {
     //Check for comments
-    char *commentChr = strchr(buffer, COMMENT_CHAR);
+    char *commentChr = strchr(cmd, COMMENT_CHAR);
     if (commentChr != NULL && *(commentChr - 1) == ' ') {
         *commentChr = '\0';
     }
 
     //Check for semicolon operators
-    char *semicolonChr = strchr(buffer, ';');
+    char *semicolonChr = strchr(cmd, ';');
     if (semicolonChr != NULL) {
-        char *tempBuffer = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
-        strcpy(tempBuffer, buffer);
+        char *tempCmd = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
+        strcpy(tempCmd, cmd);
 
-        char **tokens = split(tempBuffer, ";");
+        char **tokens = split(tempCmd, ";");
         for (int i = 0; tokens[i] != NULL; i++) {
             trimWhitespaceFromEnds(tokens[i]);
             executeCommandsAndPipes(tokens[i]);
         }
-        free(tempBuffer);
+        free(tempCmd);
         free(tokens);
         return;
     }
 
-    executeCommandsAndPipes(buffer);
+    executeCommandsAndPipes(cmd);
 }
 
-void addCommandToHistory(char *buffer) {
+void addCommandToHistory(char *cmd) {
     //Don't add "history" to history array if it's the latest command in the array
     //and the user types "history" again
     if (history.count > 0) {
         char *lastElement = history.elements[history.count - 1];
-        if (strcmp(buffer, "history") == 0 && strcmp(lastElement, buffer) == 0) {
+        if (strcmp(cmd, "history") == 0 && strcmp(lastElement, cmd) == 0) {
             return;
         }
     }
@@ -320,10 +320,10 @@ void addCommandToHistory(char *buffer) {
             history.elements[i] = history.elements[i + 1];
         }
         history.elements[HISTORY_MAX_ELEMENTS - 1] = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
-        strcpy(history.elements[HISTORY_MAX_ELEMENTS - 1], buffer);
+        strcpy(history.elements[HISTORY_MAX_ELEMENTS - 1], cmd);
     } else {
         history.elements[history.count] = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
-        strcpy(history.elements[history.count], buffer);
+        strcpy(history.elements[history.count], cmd);
         history.count++;
     }
 }
@@ -349,18 +349,18 @@ void printPrompt(void) {
 }
 
 int main(int argc, char *argv[]) {
-    char *buffer = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
+    char *cmd = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
     if (argc > 1) {
         FILE *fp = fopen(argv[1], "r");
         if (fp == NULL) {
             fprintf(stderr, "%s: %s: No such file or directory\n", SHELL_NAME, argv[1]);
             exit(1);
         }
-        while (fgets(buffer, COMMAND_BUFFER_SIZE, fp) != NULL) {
-            removeNewlineIfExists(buffer);
-            bool trimSuccess = trimWhitespaceFromEnds(buffer);
-            if (*buffer != COMMENT_CHAR && trimSuccess) {
-                processCommand(buffer);
+        while (fgets(cmd, COMMAND_BUFFER_SIZE, fp) != NULL) {
+            removeNewlineIfExists(cmd);
+            bool trimSuccess = trimWhitespaceFromEnds(cmd);
+            if (*cmd != COMMENT_CHAR && trimSuccess) {
+                processCommand(cmd);
             }
         }
         fclose(fp);
@@ -382,17 +382,17 @@ int main(int argc, char *argv[]) {
         //usually by pressing Ctrl+C
         do {
             sigintReceived = false;
-            while (fgets(buffer, COMMAND_BUFFER_SIZE, stdin) != NULL) {
-                removeNewlineIfExists(buffer);
-                bool trimSuccess = trimWhitespaceFromEnds(buffer);
+            while (fgets(cmd, COMMAND_BUFFER_SIZE, stdin) != NULL) {
+                removeNewlineIfExists(cmd);
+                bool trimSuccess = trimWhitespaceFromEnds(cmd);
                 if (trimSuccess) {
-                    addCommandToHistory(buffer);
-                    if (*buffer != COMMENT_CHAR) {
-                        if (strcmp(buffer, EXIT_COMMAND) == 0) {
+                    addCommandToHistory(cmd);
+                    if (*cmd != COMMENT_CHAR) {
+                        if (strcmp(cmd, EXIT_COMMAND) == 0) {
                             typedExitCommand = true;
                             break;
                         }
-                        processCommand(buffer);
+                        processCommand(cmd);
                     }
                 }
                 if (stdinFromTerminal) {
@@ -421,6 +421,6 @@ int main(int argc, char *argv[]) {
             free(history.elements[i]);
         }
     }
-    free(buffer);
+    free(cmd);
     return 0;
 }
