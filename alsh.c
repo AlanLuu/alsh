@@ -96,7 +96,7 @@ int* handleRedirectStdout(char *cmd) {
     if (stdoutRedirectChr != NULL) {
         int oldStdout = dup(STDOUT_FILENO);
         status = malloc(sizeof(int) * 2);
-        status[0] = true;
+        *status = true;
         status[1] = oldStdout;
 
         char *tempCmd = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
@@ -137,17 +137,21 @@ int* handleRedirectStdin(char *cmd) {
         char *fileName = tokens[1];
         trimWhitespaceFromEnds(fileName);
 
+        char *stdoutRedirectChr = strchr(fileName, '>');
+        if (stdoutRedirectChr != NULL) {
+            do {
+                stdoutRedirectChr--;
+            } while (*stdoutRedirectChr == ' ');
+            
+            stdoutRedirectChr++;
+            *stdoutRedirectChr = '\0';
+        }
+
         FILE *fp = fopen(fileName, "r");
         if (fp == NULL) {
-            char *stdoutRedirectChr = strchr(cmd, '>');
+            fprintf(stderr, "%s: %s: No such file or directory\n", SHELL_NAME, fileName);
             status = malloc(sizeof(int));
-            if (stdoutRedirectChr != NULL) {
-                handleRedirectStdout(cmd);
-                *status = true;
-            } else {
-                fprintf(stderr, "%s: %s: No such file or directory\n", SHELL_NAME, fileName);
-                *status = -1;
-            }
+            *status = -1;
         } else {
             int oldStdin = dup(STDIN_FILENO);
             dup2(fileno(fp), STDIN_FILENO);
@@ -156,6 +160,7 @@ int* handleRedirectStdin(char *cmd) {
             *status = true;
             status[1] = oldStdin;
         }
+
         free(tempCmd);
         free(tokens);
     } else {
