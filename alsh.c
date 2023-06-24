@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -333,6 +334,58 @@ void addCommandToHistory(char *cmd) {
     }
 }
 
+int processHistoryExclamations(char *cmd) {
+    if (strchr(cmd, '!') != NULL) {
+        char *tempCmd = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
+        char *cmdCounter = cmd;
+        char *tempCmdCounter = tempCmd;
+
+        while (*cmdCounter) {
+            if (*cmdCounter == '!') {
+                #define MOVE_PTR_TO_END_OF_NUMBER do { \
+                    cmdCounter++; \
+                } while (isdigit(*cmdCounter));
+
+                MOVE_PTR_TO_END_OF_NUMBER;
+
+                cmdCounter--;
+                int historyIndex = 0;
+                while (isdigit(*cmdCounter)) {
+                    historyIndex *= 10;
+                    historyIndex += *cmdCounter - '0';
+                    cmdCounter--;
+                }
+
+                if (historyIndex > history.count) {
+                    fprintf(stderr, "%s: %d: event not found\n", SHELL_NAME, historyIndex);
+                    free(tempCmd);
+                    return 0;
+                }
+
+                char *historyCmd = history.elements[historyIndex - 1];
+                while (*historyCmd) {
+                    *tempCmdCounter = *historyCmd;
+                    tempCmdCounter++;
+                    historyCmd++;
+                }
+
+                MOVE_PTR_TO_END_OF_NUMBER;
+            } else {
+                *tempCmdCounter = *cmdCounter;
+                cmdCounter++;
+                tempCmdCounter++;
+            }
+        }
+
+        *tempCmdCounter = '\0';
+        strcpy(cmd, tempCmd);
+        free(tempCmd);
+        return 1;
+    }
+
+    return -1;
+}
+
 void printIntro(void) {
     printf("Welcome to %s!\n", SHELL_NAME);
     printf("Type '%s' to exit.\n\n", EXIT_COMMAND);
@@ -391,6 +444,17 @@ int main(int argc, char *argv[]) {
                 removeNewlineIfExists(cmd);
                 bool trimSuccess = trimWhitespaceFromEnds(cmd);
                 if (trimSuccess) {
+                    int processHistory = processHistoryExclamations(cmd);
+                    switch (processHistory) {
+                        case 0:
+                            printPrompt();
+                            continue;
+                        case 1:
+                            printf("%s\n", cmd);
+                            break;
+                        default:
+                            break;
+                    }
                     addCommandToHistory(cmd);
                     if (*cmd != COMMENT_CHAR) {
                         if (strcmp(cmd, EXIT_COMMAND) == 0) {
@@ -418,7 +482,7 @@ int main(int argc, char *argv[]) {
                 printPrompt();
             } else {
                 if (!typedExitCommand) printf("\n");
-                printf("exit\n");
+                printf("%s\n", EXIT_COMMAND);
             }
         } while (sigintReceived);
 
