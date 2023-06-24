@@ -356,7 +356,7 @@ int processHistoryExclamations(char *cmd) {
                     cmdCounter--;
                 }
 
-                if (historyIndex > history.count) {
+                if (historyIndex <= 0 || historyIndex > history.count) {
                     fprintf(stderr, "%s: %d: event not found\n", SHELL_NAME, historyIndex);
                     free(tempCmd);
                     return 0;
@@ -444,8 +444,8 @@ int main(int argc, char *argv[]) {
                 removeNewlineIfExists(cmd);
                 bool trimSuccess = trimWhitespaceFromEnds(cmd);
                 if (trimSuccess) {
-                    int processHistory = processHistoryExclamations(cmd);
-                    switch (processHistory) {
+                    int processHistoryStatus = processHistoryExclamations(cmd);
+                    switch (processHistoryStatus) {
                         case 0:
                             printPrompt();
                             continue;
