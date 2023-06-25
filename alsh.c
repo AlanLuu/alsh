@@ -368,11 +368,19 @@ int processHistoryExclamations(char *cmd) {
 
         while (*cmdCounter) {
             if (*cmdCounter == '!') {
-                if (strlen(cmdCounter) <= 1) { //Only ! in command
+                size_t cmdCounterLength = strlen(cmdCounter);
+                if (cmdCounterLength <= 1) { //Only ! in command
                     free(tempCmd);
                     return 0;
                 }
+
+                bool isNegative = false;
                 cmdCounter++;
+                if (*cmdCounter == '-') { //!-<number> command
+                    isNegative = true;
+                    cmdCounter++;
+                }
+
                 if (*cmdCounter == '!') { //!! command
                     if (history.count == 0) {
                         fprintf(stderr, "%s: !!: event not found\n", SHELL_NAME);
@@ -393,20 +401,31 @@ int processHistoryExclamations(char *cmd) {
                     }
 
                     cmdCounter--;
-                    int historyIndex = 0;
+                    int historyNumber = 0;
                     while (isdigit(*cmdCounter)) {
-                        historyIndex *= 10;
-                        historyIndex += *cmdCounter - '0';
+                        historyNumber *= 10;
+                        historyNumber += *cmdCounter - '0';
                         cmdCounter--;
                     }
 
-                    if (historyIndex <= 0 || historyIndex > history.count) {
-                        fprintf(stderr, "%s: %d: event not found\n", SHELL_NAME, historyIndex);
-                        free(tempCmd);
-                        return 0;
+                    int historyIndex;
+                    if (isNegative) {
+                        historyIndex = history.count - historyNumber;
+                        if (historyIndex < 0) {
+                            fprintf(stderr, "%s: !-%d: event not found\n", SHELL_NAME, historyNumber);
+                            free(tempCmd);
+                            return 0;
+                        }
+                    } else {
+                        if (historyNumber <= 0 || historyNumber > history.count) {
+                            fprintf(stderr, "%s: !%d: event not found\n", SHELL_NAME, historyNumber);
+                            free(tempCmd);
+                            return 0;
+                        }
+                        historyIndex = historyNumber - 1;
                     }
 
-                    char *historyCmd = history.elements[historyIndex - 1];
+                    char *historyCmd = history.elements[historyIndex];
                     while (*historyCmd) {
                         *tempCmdCounter = *historyCmd;
                         tempCmdCounter++;
@@ -417,7 +436,8 @@ int processHistoryExclamations(char *cmd) {
                         cmdCounter++;
                     } while (isdigit(*cmdCounter));
                 } else {
-                    fprintf(stderr, "%s: %c: event not found\n", SHELL_NAME, *cmdCounter);
+                    cmdCounter -= isNegative ? 2 : 1;
+                    fprintf(stderr, "%s: %s: event not found\n", SHELL_NAME, cmdCounter);
                     free(tempCmd);
                     return 0;
                 }
