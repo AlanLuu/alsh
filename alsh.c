@@ -16,10 +16,16 @@
 #define SPLIT_ARR_MAX_ELEMENTS 100
 
 static char cwd[CWD_BUFFER_SIZE]; //Current working directory
+
 struct {
     char *elements[HISTORY_MAX_ELEMENTS];
     int count;
 } history;
+#define FREE_HISTORY_ELEMENTS do { \
+    for (int i = 0; i < history.count; i++) { \
+        free(history.elements[i]); \
+    } \
+} while (0)
 
 static bool sigintReceived = false;
 void sigintHandler(int sig) {
@@ -204,8 +210,18 @@ void executeCommand(char *cmd) {
 
     //history command
     if (strcmp(tokens[0], "history") == 0) {
-        for (int i = 0; i < history.count; i++) {
-            printf("    %d. %s\n", i + 1, history.elements[i]);
+        char *flag = tokens[1];
+        if (flag != NULL) {
+            if (strcmp(flag, "-c") == 0) {
+                FREE_HISTORY_ELEMENTS;
+                history.count = 0;
+            } else {
+                fprintf(stderr, "%s: history: %s: invalid option\n", SHELL_NAME, flag);
+            }
+        } else {
+            for (int i = 0; i < history.count; i++) {
+                printf("    %d. %s\n", i + 1, history.elements[i]);
+            }
         }
         free(tempCmd);
         free(tokens);
@@ -486,9 +502,7 @@ int main(int argc, char *argv[]) {
             }
         } while (sigintReceived);
 
-        for (int i = 0; i < history.count; i++) {
-            free(history.elements[i]);
-        }
+        FREE_HISTORY_ELEMENTS;
     }
     free(cmd);
     return 0;

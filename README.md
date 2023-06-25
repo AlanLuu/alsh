@@ -8,6 +8,7 @@ A custom UNIX shell written in C
 - Execute commands with pipes `|`
 - Execute multiple commands separated by `;` on the same line
 - View command history with `history` and execute previous commands with `!n`, where `n` is the command number in the history list (e.g. `!3` will execute the third command in the history list)
+    - To clear the history list, use `history -c`
 
 # Build
 ```
