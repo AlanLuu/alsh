@@ -195,11 +195,17 @@ void executeCommand(char *cmd) {
     if (strcmp(tokens[0], "cd") == 0) {
         char *arg = tokens[1];
         if (arg == NULL) { //No argument, change to home directory
-            chdir(getenv("HOME"));
+            if (chdir(getenv("HOME")) != 0) {
+                //Should not happen
+                fprintf(stderr, "%s: cd: Failed to change to home directory", SHELL_NAME);
+            }
         } else if (strcmp(arg, "..") == 0) { //Go up one directory
             char *lastSlashPos = strrchr(cwd, '/');
             *(lastSlashPos + 1) = '\0';
-            chdir(cwd);
+            if (chdir(cwd) != 0) {
+                //Should not happen
+                fprintf(stderr, "%s: cd: Failed to go up one directory", SHELL_NAME);
+            }
         } else if (chdir(arg) != 0) { //Change to specified directory
             fprintf(stderr, "%s: cd: %s: No such file or directory\n", SHELL_NAME, arg);
         }
@@ -276,7 +282,11 @@ void executeCommandsAndPipes(char *cmd) {
         int fd[2];
         int i;
         for (i = 0; i < tokensCount - 1; i++) {
-            pipe(fd);
+            if (pipe(fd) != 0) {
+                //Should not happen
+                fprintf(stderr, "%s: pipe: Failed to create pipe\n", SHELL_NAME);
+                exit(1);
+            }
             pid_t cid = fork();
             if (cid == 0) {
                 dup2(fd[1], STDOUT_FILENO);
