@@ -22,3 +22,6 @@ After building, to run the shell:
 ```
 ./alsh
 ```
+
+# License
+alsh is distributed under the terms of the [MIT License](https://github.com/AlanLuu/alsh/blob/main/LICENSE).
