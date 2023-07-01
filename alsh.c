@@ -11,6 +11,7 @@
 #define COMMENT_CHAR '#'
 #define CWD_BUFFER_SIZE 4096
 #define EXIT_COMMAND "exit"
+#define HISTORY_FILE_NAME ".alsh_history"
 #define HISTORY_MAX_ELEMENTS 100
 #define SHELL_NAME "alsh"
 #define SPLIT_ARR_MAX_ELEMENTS 100
@@ -221,6 +222,22 @@ void executeCommand(char *cmd) {
             if (strcmp(flag, "-c") == 0) {
                 FREE_HISTORY_ELEMENTS;
                 history.count = 0;
+            } else if (strcmp(flag, "-w") == 0) {
+                //Total of 52 characters for /home/<username>/.alsh_history
+                //Maximum of 32 characters for <username>
+                //20 characters for the rest of the path
+                char historyFile[52];
+                strcpy(historyFile, getenv("HOME"));
+                strcat(historyFile, "/" HISTORY_FILE_NAME);
+                FILE *historyfp = fopen(historyFile, "w");
+                if (historyfp == NULL) {
+                    fprintf(stderr, "%s: history: Failed to open history file\n", SHELL_NAME);
+                } else {
+                    for (int i = 0; i < history.count; i++) {
+                        fprintf(historyfp, "%s\n", history.elements[i]);
+                    }
+                    fclose(historyfp);
+                }
             } else {
                 fprintf(stderr, "%s: history: %s: invalid option\n", SHELL_NAME, flag);
             }
@@ -483,6 +500,26 @@ int main(int argc, char *argv[]) {
         }
         fclose(fp);
     } else {
+        //Total of 52 characters for /home/<username>/.alsh_history
+        //Maximum of 32 characters for <username>
+        //20 characters for the rest of the path
+        char historyFile[52];
+        strcpy(historyFile, getenv("HOME"));
+        strcat(historyFile, "/" HISTORY_FILE_NAME);
+        FILE *historyfp = fopen(historyFile, "r");
+        if (historyfp != NULL) {
+            char *historyLine = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
+            while (fgets(historyLine, COMMAND_BUFFER_SIZE, historyfp) != NULL) {
+                removeNewlineIfExists(historyLine);
+                bool trimSuccess = trimWhitespaceFromEnds(historyLine);
+                if (*historyLine != COMMENT_CHAR && trimSuccess) {
+                    addCommandToHistory(historyLine);
+                }
+            }
+            free(historyLine);
+            fclose(historyfp);
+        }
+
         bool stdinFromTerminal = isatty(STDIN_FILENO);
         bool typedExitCommand = false;
         if (stdinFromTerminal) {

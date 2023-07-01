@@ -11,6 +11,7 @@ A custom UNIX shell written in C
     - To execute the previous command, use `!!`
     - To execute the command `n` lines back in the history list, use `!-n` (e.g. `!-2` will execute the command 2 lines back in the history list)
     - To clear the history list, use `history -c`
+    - To write the history list to a file, use `history -w`, which will write the list to `~/.alsh_history`
 
 # Build
 ```
