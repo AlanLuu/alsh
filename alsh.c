@@ -108,7 +108,7 @@ int* handleRedirectStdout(char *cmd) {
         status[1] = oldStdout;
 
         char *fileName = stdoutRedirectChr + 1;
-        while (*fileName == ' ') {
+        while (*fileName == ' ' || *fileName == '>') {
             fileName++;
         }
         trimWhitespaceFromEnds(fileName);
