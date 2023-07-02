@@ -198,14 +198,14 @@ void executeCommand(char *cmd) {
         if (arg == NULL) { //No argument, change to home directory
             if (chdir(getenv("HOME")) != 0) {
                 //Should not happen
-                fprintf(stderr, "%s: cd: Failed to change to home directory", SHELL_NAME);
+                fprintf(stderr, "%s: cd: Failed to change to home directory\n", SHELL_NAME);
             }
         } else if (strcmp(arg, "..") == 0) { //Go up one directory
             char *lastSlashPos = strrchr(cwd, '/');
             *(lastSlashPos + 1) = '\0';
             if (chdir(cwd) != 0) {
                 //Should not happen
-                fprintf(stderr, "%s: cd: Failed to go up one directory", SHELL_NAME);
+                fprintf(stderr, "%s: cd: Failed to change to parent directory\n", SHELL_NAME);
             }
         } else if (chdir(arg) != 0) { //Change to specified directory
             fprintf(stderr, "%s: cd: %s: No such file or directory\n", SHELL_NAME, arg);
