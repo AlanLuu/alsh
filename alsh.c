@@ -219,27 +219,33 @@ void executeCommand(char *cmd) {
     if (strcmp(tokens[0], "history") == 0) {
         char *flag = tokens[1];
         if (flag != NULL) {
-            if (strcmp(flag, "-c") == 0) {
-                FREE_HISTORY_ELEMENTS;
-                history.count = 0;
-            } else if (strcmp(flag, "-w") == 0) {
-                //Total of 52 characters for /home/<username>/.alsh_history
-                //Maximum of 32 characters for <username>
-                //20 characters for the rest of the path
-                char historyFile[52];
-                strcpy(historyFile, getenv("HOME"));
-                strcat(historyFile, "/" HISTORY_FILE_NAME);
-                FILE *historyfp = fopen(historyFile, "w");
-                if (historyfp == NULL) {
-                    fprintf(stderr, "%s: history: Failed to open history file\n", SHELL_NAME);
-                } else {
-                    for (int i = 0; i < history.count; i++) {
-                        fprintf(historyfp, "%s\n", history.elements[i]);
+            char flagChr = flag[1];
+            switch (flagChr) {
+                case 'c':
+                    FREE_HISTORY_ELEMENTS;
+                    history.count = 0;
+                    break;
+                case 'w': {
+                    //Total of 52 characters for /home/<username>/.alsh_history
+                    //Maximum of 32 characters for <username>
+                    //20 characters for the rest of the path
+                    char historyFile[52];
+                    strcpy(historyFile, getenv("HOME"));
+                    strcat(historyFile, "/" HISTORY_FILE_NAME);
+                    FILE *historyfp = fopen(historyFile, "w");
+                    if (historyfp == NULL) {
+                        fprintf(stderr, "%s: history: Failed to open history file\n", SHELL_NAME);
+                    } else {
+                        for (int i = 0; i < history.count; i++) {
+                            fprintf(historyfp, "%s\n", history.elements[i]);
+                        }
+                        fclose(historyfp);
                     }
-                    fclose(historyfp);
+                    break;
                 }
-            } else {
-                fprintf(stderr, "%s: history: %s: invalid option\n", SHELL_NAME, flag);
+                default:
+                    fprintf(stderr, "%s: history: %s: invalid option\n", SHELL_NAME, flag);
+                    break;
             }
         } else {
             for (int i = 0; i < history.count; i++) {
