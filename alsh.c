@@ -107,28 +107,16 @@ int* handleRedirectStdout(char *cmd) {
         *status = true;
         status[1] = oldStdout;
 
-        char *tempCmd = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
-        strcpy(tempCmd, cmd);
-
-        char *splitStr, *fopenMode;
-        if (*(stdoutRedirectChr + 1) == '>') {
-            splitStr = ">>";
-            fopenMode = "a";
-        } else {
-            splitStr = ">";
-            fopenMode = "w";
+        char *fileName = stdoutRedirectChr + 1;
+        while (*fileName == ' ') {
+            fileName++;
         }
-
-        char **tokens = split(tempCmd, splitStr);
-        char *fileName = tokens[1];
         trimWhitespaceFromEnds(fileName);
 
+        char *fopenMode = *(stdoutRedirectChr + 1) == '>' ? "a" : "w";
         FILE *fp = fopen(fileName, fopenMode);
         dup2(fileno(fp), STDOUT_FILENO);
         fclose(fp);
-        
-        free(tempCmd);
-        free(tokens);
     } else {
         status = calloc(1, sizeof(int));
     }
@@ -141,8 +129,11 @@ int* handleRedirectStdin(char *cmd) {
     if (stdinRedirectChr != NULL) {
         char *tempCmd = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
         strcpy(tempCmd, cmd);
-        char **tokens = split(tempCmd, "<");
-        char *fileName = tokens[1];
+
+        char *fileName = strchr(tempCmd, '<') + 1;
+        while (*fileName == ' ') {
+            fileName++;
+        }
         trimWhitespaceFromEnds(fileName);
 
         char *stdoutRedirectChr = strchr(fileName, '>');
@@ -170,7 +161,6 @@ int* handleRedirectStdin(char *cmd) {
         }
 
         free(tempCmd);
-        free(tokens);
     } else {
         status = calloc(1, sizeof(int));
     }
