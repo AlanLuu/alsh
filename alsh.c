@@ -103,21 +103,27 @@ int* handleRedirectStdout(char *cmd) {
     char *stdoutRedirectChr = strchr(cmd, '>');
     int *status;
     if (stdoutRedirectChr != NULL) {
-        int oldStdout = dup(STDOUT_FILENO);
-        status = malloc(sizeof(int) * 2);
-        *status = true;
-        status[1] = oldStdout;
-
         char *fileName = stdoutRedirectChr + 1;
         while (*fileName == ' ' || *fileName == '>') {
             fileName++;
         }
         trimWhitespaceFromEnds(fileName);
 
-        char *fopenMode = *(stdoutRedirectChr + 1) == '>' ? "a" : "w";
-        FILE *fp = fopen(fileName, fopenMode);
-        dup2(fileno(fp), STDOUT_FILENO);
-        fclose(fp);
+        if (*fileName == '\0') {
+            fprintf(stderr, "%s: %s: Missing file name\n", SHELL_NAME, stdoutRedirectChr);
+            status = malloc(sizeof(int));
+            *status = -1;
+        } else {
+            int oldStdout = dup(STDOUT_FILENO);
+            status = malloc(sizeof(int) * 2);
+            *status = 1;
+            status[1] = oldStdout;
+
+            char *fopenMode = *(stdoutRedirectChr + 1) == '>' ? "a" : "w";
+            FILE *fp = fopen(fileName, fopenMode);
+            dup2(fileno(fp), STDOUT_FILENO);
+            fclose(fp);
+        }
     } else {
         status = calloc(1, sizeof(int));
     }
@@ -157,7 +163,7 @@ int* handleRedirectStdin(char *cmd) {
             dup2(fileno(fp), STDIN_FILENO);
             fclose(fp);
             status = malloc(sizeof(int) * 2);
-            *status = true;
+            *status = 1;
             status[1] = oldStdin;
         }
 
@@ -256,6 +262,13 @@ void executeCommand(char *cmd) {
         return;
     }
     int *stdoutStatus = handleRedirectStdout(cmd);
+    if (*stdoutStatus == -1) {
+        free(stdinStatus);
+        free(stdoutStatus);
+        free(tempCmd);
+        free(tokens);
+        return;
+    }
     pid_t cid = fork();
     if (cid == 0) {
         char *strsToRemove[] = {"<", ">", ">>"};
