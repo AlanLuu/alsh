@@ -11,6 +11,7 @@
 #define COMMENT_CHAR '#'
 #define CWD_BUFFER_SIZE 4096
 #define EXIT_COMMAND "exit"
+#define HISTORY_COMMAND "history"
 #define HISTORY_FILE_NAME ".alsh_history"
 #define HISTORY_MAX_ELEMENTS 100
 #define SHELL_NAME "alsh"
@@ -206,7 +207,7 @@ void executeCommand(char *cmd) {
     }
 
     //history command
-    if (strcmp(tokens[0], "history") == 0) {
+    if (strcmp(tokens[0], HISTORY_COMMAND) == 0) {
         char *flag = tokens[1];
         if (flag != NULL) {
             char flagChr = flag[1];
@@ -224,7 +225,7 @@ void executeCommand(char *cmd) {
                     strcat(historyFile, "/" HISTORY_FILE_NAME);
                     FILE *historyfp = fopen(historyFile, "w");
                     if (historyfp == NULL) {
-                        fprintf(stderr, "%s: history: Failed to open history file\n", SHELL_NAME);
+                        fprintf(stderr, "%s: %s: Failed to open history file\n", SHELL_NAME, HISTORY_COMMAND);
                     } else {
                         for (int i = 0; i < history.count; i++) {
                             fprintf(historyfp, "%s\n", history.elements[i]);
@@ -234,7 +235,7 @@ void executeCommand(char *cmd) {
                     break;
                 }
                 default:
-                    fprintf(stderr, "%s: history: %s: invalid option\n", SHELL_NAME, flag);
+                    fprintf(stderr, "%s: %s: %s: invalid option\n", SHELL_NAME, HISTORY_COMMAND, flag);
                     break;
             }
         } else {
@@ -348,11 +349,11 @@ void processCommand(char *cmd) {
 }
 
 void addCommandToHistory(char *cmd) {
-    //Don't add "history" to history array if it's the latest command in the array
-    //and the user types "history" again
+    //Don't add the history command to the history array if it's the latest command
+    //in the array and the user types it again
     if (history.count > 0) {
         char *lastElement = history.elements[history.count - 1];
-        if (strcmp(cmd, "history") == 0 && strcmp(lastElement, cmd) == 0) {
+        if (strcmp(cmd, HISTORY_COMMAND) == 0 && strcmp(lastElement, cmd) == 0) {
             return;
         }
     }
