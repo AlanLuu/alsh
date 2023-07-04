@@ -104,13 +104,15 @@ int* handleRedirectStdout(char *cmd) {
     int *status;
     if (stdoutRedirectChr != NULL) {
         char *fileName = stdoutRedirectChr + 1;
+        char *fopenMode = "w";
         while (*fileName == ' ' || *fileName == '>') {
+            if (*fileName == '>') fopenMode = "a";
             fileName++;
         }
         trimWhitespaceFromEnds(fileName);
 
         if (*fileName == '\0') {
-            fprintf(stderr, "%s: %s: Missing file name\n", SHELL_NAME, stdoutRedirectChr);
+            fprintf(stderr, "%s: %s: Missing file name\n", SHELL_NAME, *fopenMode == 'a' ? ">>" : ">");
             status = malloc(sizeof(int));
             *status = -1;
         } else {
@@ -118,8 +120,7 @@ int* handleRedirectStdout(char *cmd) {
             status = malloc(sizeof(int) * 2);
             *status = 1;
             status[1] = oldStdout;
-
-            char *fopenMode = *(stdoutRedirectChr + 1) == '>' ? "a" : "w";
+            
             FILE *fp = fopen(fileName, fopenMode);
             dup2(fileno(fp), STDOUT_FILENO);
             fclose(fp);
