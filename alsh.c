@@ -177,7 +177,37 @@ int* handleRedirectStdin(char *cmd) {
 
 void executeCommand(char *cmd) {
     char *tempCmd = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
-    strcpy(tempCmd, cmd);
+    char *cmdPtr = cmd;
+    char *tempCmdPtr = tempCmd;
+    int cmdIndex = 0;
+    while (*cmdPtr) {
+        switch (*cmdPtr) {
+            case '<':
+            case '>':
+                //Avoid ub if cmdPtr is at the beginning of the string
+                if (cmdIndex > 0
+                    && (*(cmdPtr - 1) != ' '
+                        || (*(cmdPtr + 1) != ' ' && *(cmdPtr + 1) != '>')
+                    )
+                ) {
+                    *tempCmdPtr++ = ' ';
+                    *tempCmdPtr++ = *cmdPtr++;
+                    if (*(cmdPtr - 1) == '>' && *cmdPtr == '>') {
+                        *tempCmdPtr++ = *cmdPtr++;
+                    }
+                    *tempCmdPtr++ = ' ';
+                } else {
+                    *tempCmdPtr++ = *cmdPtr++;
+                }
+                break;
+            default:
+                *tempCmdPtr++ = *cmdPtr++;
+                break;
+        }
+        cmdIndex++;
+    }
+    *tempCmdPtr = '\0';
+    
     char **tokens = split(tempCmd, " ");
 
     //Add --color=auto to ls command
@@ -448,9 +478,7 @@ int processHistoryExclamations(char *cmd) {
 
                     char *historyCmd = history.elements[historyIndex];
                     while (*historyCmd) {
-                        *tempCmdCounter = *historyCmd;
-                        tempCmdCounter++;
-                        historyCmd++;
+                        *tempCmdCounter++ = *historyCmd++;
                     }
                 } else {
                     cmdCounter -= isNegative ? 2 : 1;
@@ -459,9 +487,7 @@ int processHistoryExclamations(char *cmd) {
                     return 0;
                 }
             } else {
-                *tempCmdCounter = *cmdCounter;
-                cmdCounter++;
-                tempCmdCounter++;
+                *tempCmdCounter++ = *cmdCounter++;
             }
         }
 
