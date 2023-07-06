@@ -614,7 +614,7 @@ int main(int argc, char *argv[]) {
             if (sigintReceived) {
                 printf("\n");
                 printPrompt();
-            } else {
+            } else if (stdinFromTerminal) {
                 if (!typedExitCommand) printf("\n");
                 printf("%s\n", EXIT_COMMAND);
             }
