@@ -13,16 +13,14 @@ A custom UNIX shell written in C
     - To clear the history list, use `history -c`
     - To write the history list to a file, use `history -w`, which will write the list to `~/.alsh_history`
 
-# Build
+# Installation
 ```
 git clone https://github.com/AlanLuu/alsh.git
 cd alsh
 make
+sudo make install
 ```
-After building, to run the shell:
-```
-./alsh
-```
+This will install alsh as `alsh` in `/usr/local/bin`.
 
 # License
 alsh is distributed under the terms of the [MIT License](https://github.com/AlanLuu/alsh/blob/main/LICENSE).
