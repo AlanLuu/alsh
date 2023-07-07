@@ -342,8 +342,10 @@ void executeCommandsAndPipes(char *cmd) {
         for (i = 0; i < tokensCount - 1; i++) {
             if (pipe(fd) != 0) {
                 //Should not happen
-                fprintf(stderr, "%s: pipe: Failed to create pipe\n", SHELL_NAME);
-                exit(1);
+                fprintf(stderr, "%s: Failed to create pipe\n", SHELL_NAME);
+                free(tempCmd);
+                free(tokens);
+                return;
             }
             pid_t cid = fork();
             if (cid == 0) {
