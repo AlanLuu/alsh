@@ -175,7 +175,8 @@ int* handleRedirectStdin(char *cmd) {
     return status;
 }
 
-void executeCommand(char *cmd) {
+int executeCommand(char *cmd) {
+    int exitStatus = 0;
     char *tempCmd = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
     char *cmdPtr = cmd;
     char *tempCmdPtr = tempCmd;
@@ -227,6 +228,7 @@ void executeCommand(char *cmd) {
             if (chdir(getenv("HOME")) != 0) {
                 //Should not happen
                 fprintf(stderr, "%s: cd: Failed to change to home directory\n", SHELL_NAME);
+                exitStatus = 1;
             }
         } else if (strcmp(arg, "..") == 0) { //Go up one directory
             char *lastSlashPos = strrchr(cwd, '/');
@@ -234,13 +236,15 @@ void executeCommand(char *cmd) {
             if (chdir(cwd) != 0) {
                 //Should not happen
                 fprintf(stderr, "%s: cd: Failed to change to parent directory\n", SHELL_NAME);
+                exitStatus = 1;
             }
         } else if (chdir(arg) != 0) { //Change to specified directory
             fprintf(stderr, "%s: cd: %s: No such file or directory\n", SHELL_NAME, arg);
+            exitStatus = 1;
         }
         free(tempCmd);
         free(tokens);
-        return;
+        return exitStatus;
     }
 
     //history command
@@ -263,6 +267,7 @@ void executeCommand(char *cmd) {
                     FILE *historyfp = fopen(historyFile, "w");
                     if (historyfp == NULL) {
                         fprintf(stderr, "%s: %s: Failed to open history file\n", SHELL_NAME, HISTORY_COMMAND);
+                        exitStatus = 1;
                     } else {
                         for (int i = 0; i < history.count; i++) {
                             fprintf(historyfp, "%s\n", history.elements[i]);
@@ -273,6 +278,7 @@ void executeCommand(char *cmd) {
                 }
                 default:
                     fprintf(stderr, "%s: %s: %s: invalid option\n", SHELL_NAME, HISTORY_COMMAND, flag);
+                    exitStatus = 1;
                     break;
             }
         } else {
@@ -282,7 +288,7 @@ void executeCommand(char *cmd) {
         }
         free(tempCmd);
         free(tokens);
-        return;
+        return exitStatus;
     }
 
     int *stdinStatus = handleRedirectStdin(cmd);
@@ -290,7 +296,7 @@ void executeCommand(char *cmd) {
         free(stdinStatus);
         free(tempCmd);
         free(tokens);
-        return;
+        return 1;
     }
     int *stdoutStatus = handleRedirectStdout(cmd);
     if (*stdoutStatus == -1) {
@@ -298,7 +304,7 @@ void executeCommand(char *cmd) {
         free(stdoutStatus);
         free(tempCmd);
         free(tokens);
-        return;
+        return 1;
     }
     pid_t cid = fork();
     if (cid == 0) {
@@ -310,7 +316,11 @@ void executeCommand(char *cmd) {
         fprintf(stderr, "%s: command not found\n", tokens[0]);
         exit(1);
     }
-    while (wait(NULL) > 0);
+
+    int status;
+    while (wait(&status) > 0);
+
+    exitStatus = (WIFEXITED(status)) ? (WEXITSTATUS(status)) : 1;
     if (*stdinStatus) {
         dup2(stdinStatus[1], STDIN_FILENO);
     }
@@ -321,9 +331,10 @@ void executeCommand(char *cmd) {
     free(stdoutStatus);
     free(tempCmd);
     free(tokens);
+    return exitStatus;
 }
 
-void executeCommandsAndPipes(char *cmd) {
+int processPipeCommands(char *cmd) {
     char *pipeChr = strchr(cmd, '|');
     if (pipeChr != NULL) {
         char *tempCmd = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
@@ -345,27 +356,50 @@ void executeCommandsAndPipes(char *cmd) {
                 fprintf(stderr, "%s: Failed to create pipe\n", SHELL_NAME);
                 free(tempCmd);
                 free(tokens);
-                return;
+                return 1;
             }
             pid_t cid = fork();
             if (cid == 0) {
                 dup2(fd[1], STDOUT_FILENO);
                 close(fd[0]);
-                executeCommand(tokens[i]);
+                (void) executeCommand(tokens[i]);
                 exit(0);
             }
             while (wait(NULL) > 0);
             dup2(fd[0], STDIN_FILENO);
             close(fd[1]);
         }
-        executeCommand(tokens[i]);
+        int exitStatus = executeCommand(tokens[i]);
         dup2(terminal_stdout, STDOUT_FILENO);
         dup2(terminal_stdin, STDIN_FILENO);
         free(tempCmd);
         free(tokens);
-        return;
+        return exitStatus;
     }
-    executeCommand(cmd);
+    return executeCommand(cmd);
+}
+
+int processAndCommands(char *cmd) {
+    char *andChr = strchr(cmd, '&');
+    if (andChr != NULL && *(andChr + 1) == '&') {
+        char *tempCmd = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
+        strcpy(tempCmd, cmd);
+
+        char **tokens = split(tempCmd, "&&");
+        for (int i = 0; tokens[i] != NULL; i++) {
+            trimWhitespaceFromEnds(tokens[i]);
+            int exitStatus = processPipeCommands(tokens[i]);
+            if (exitStatus != 0) {
+                free(tempCmd);
+                free(tokens);
+                return exitStatus;
+            }
+        }
+        free(tempCmd);
+        free(tokens);
+        return 0;
+    }
+    return processPipeCommands(cmd);
 }
 
 void processCommand(char *cmd) {
@@ -384,14 +418,14 @@ void processCommand(char *cmd) {
         char **tokens = split(tempCmd, ";");
         for (int i = 0; tokens[i] != NULL; i++) {
             trimWhitespaceFromEnds(tokens[i]);
-            executeCommandsAndPipes(tokens[i]);
+            (void) processAndCommands(tokens[i]);
         }
         free(tempCmd);
         free(tokens);
         return;
     }
 
-    executeCommandsAndPipes(cmd);
+    (void) processAndCommands(cmd);
 }
 
 void addCommandToHistory(char *cmd) {
