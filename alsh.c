@@ -1,4 +1,5 @@
 #include <ctype.h>
+#include <pwd.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -16,8 +17,14 @@
 #define HISTORY_MAX_ELEMENTS 100
 #define SHELL_NAME "alsh"
 #define SPLIT_ARR_MAX_ELEMENTS 100
+#define USERNAME_MAX_LENGTH 32
 
 static char cwd[CWD_BUFFER_SIZE]; //Current working directory
+static struct passwd *pwd; //User info
+
+bool isRootUser() {
+    return pwd->pw_uid == 0;
+}
 
 struct {
     char *elements[HISTORY_MAX_ELEMENTS];
@@ -33,6 +40,29 @@ static bool sigintReceived = false;
 void sigintHandler(int sig) {
     (void) sig;
     sigintReceived = true;
+}
+
+/**
+ * Gets the home directory of the user associated with the current process
+ * and stores it in buffer
+*/
+void getHomeDirectory(char *buffer) {
+    *buffer = '/';
+    *(buffer + 1) = '\0';
+    if (isRootUser()) {
+        strcat(buffer, "root");
+    } else {
+        strcat(buffer, "home/");
+        strcat(buffer, pwd->pw_name);
+    }
+}
+
+/**
+ * Same as getHomeDirectory() but appends a trailing slash to the end
+*/
+void getHomeDirectory_ts(char *buffer) {
+    getHomeDirectory(buffer);
+    strcat(buffer, "/");
 }
 
 /**
@@ -225,7 +255,9 @@ int executeCommand(char *cmd) {
     if (strcmp(tokens[0], "cd") == 0) {
         char *arg = tokens[1];
         if (arg == NULL) { //No argument, change to home directory
-            if (chdir(getenv("HOME")) != 0) {
+            char homeDir[USERNAME_MAX_LENGTH + 6];
+            getHomeDirectory(homeDir);
+            if (chdir(homeDir) != 0) {
                 //Should not happen
                 fprintf(stderr, "%s: cd: Failed to change to home directory\n", SHELL_NAME);
                 exitStatus = 1;
@@ -261,9 +293,9 @@ int executeCommand(char *cmd) {
                     //Total of 52 characters for /home/<username>/.alsh_history
                     //Maximum of 32 characters for <username>
                     //20 characters for the rest of the path
-                    char historyFile[52];
-                    strcpy(historyFile, getenv("HOME"));
-                    strcat(historyFile, "/" HISTORY_FILE_NAME);
+                    char historyFile[USERNAME_MAX_LENGTH + 20];
+                    getHomeDirectory_ts(historyFile);
+                    strcat(historyFile, HISTORY_FILE_NAME);
                     FILE *historyfp = fopen(historyFile, "w");
                     if (historyfp == NULL) {
                         fprintf(stderr, "%s: %s: Failed to open history file\n", SHELL_NAME, HISTORY_COMMAND);
@@ -568,8 +600,7 @@ void printPrompt(void) {
         fprintf(stderr, "Error getting current working directory, exiting shell...\n");
         exit(1);
     }
-    bool isRootUser = getuid() == 0;
-    if (isRootUser) {
+    if (isRootUser()) {
         //Print red prompt
         printf("\033[1;31m%s-root:\033[1;34m%s\033[0m# ", SHELL_NAME, cwd);
     } else {
@@ -580,6 +611,7 @@ void printPrompt(void) {
 
 int main(int argc, char *argv[]) {
     char *cmd = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
+    pwd = getpwuid(getuid());
     if (argc > 1) {
         FILE *fp = fopen(argv[1], "r");
         if (fp == NULL) {
@@ -598,9 +630,9 @@ int main(int argc, char *argv[]) {
         //Total of 52 characters for /home/<username>/.alsh_history
         //Maximum of 32 characters for <username>
         //20 characters for the rest of the path
-        char historyFile[52];
-        strcpy(historyFile, getenv("HOME"));
-        strcat(historyFile, "/" HISTORY_FILE_NAME);
+        char historyFile[USERNAME_MAX_LENGTH + 20];
+        getHomeDirectory_ts(historyFile);
+        strcat(historyFile, HISTORY_FILE_NAME);
         FILE *historyfp = fopen(historyFile, "r");
         if (historyfp != NULL) {
             char *historyLine = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
