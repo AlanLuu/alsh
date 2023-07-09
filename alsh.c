@@ -334,9 +334,8 @@ int executeCommand(char *cmd) {
     return exitStatus;
 }
 
-int processPipeCommands(char *cmd) {
-    char *pipeChr = strchr(cmd, '|');
-    if (pipeChr != NULL) {
+int processPipeCommands(char *cmd, char *orChr) {
+    if (orChr != NULL) {
         char *tempCmd = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
         strcpy(tempCmd, cmd);
 
@@ -379,6 +378,29 @@ int processPipeCommands(char *cmd) {
     return executeCommand(cmd);
 }
 
+int processOrCommands(char *cmd) {
+    char *orChr = strchr(cmd, '|');
+    if (orChr != NULL && *(orChr + 1) == '|') {
+        char *tempCmd = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
+        strcpy(tempCmd, cmd);
+
+        char **tokens = split(tempCmd, "||");
+        for (int i = 0; tokens[i] != NULL; i++) {
+            trimWhitespaceFromEnds(tokens[i]);
+            int exitStatus = processPipeCommands(tokens[i], strchr(tokens[i], '|'));
+            if (exitStatus == 0 || sigintReceived) {
+                free(tempCmd);
+                free(tokens);
+                return exitStatus;
+            }
+        }
+        free(tempCmd);
+        free(tokens);
+        return 1;
+    }
+    return processPipeCommands(cmd, orChr);
+}
+
 int processAndCommands(char *cmd) {
     char *andChr = strchr(cmd, '&');
     if (andChr != NULL && *(andChr + 1) == '&') {
@@ -388,7 +410,7 @@ int processAndCommands(char *cmd) {
         char **tokens = split(tempCmd, "&&");
         for (int i = 0; tokens[i] != NULL; i++) {
             trimWhitespaceFromEnds(tokens[i]);
-            int exitStatus = processPipeCommands(tokens[i]);
+            int exitStatus = processOrCommands(tokens[i]);
             if (exitStatus != 0) {
                 free(tempCmd);
                 free(tokens);
@@ -399,7 +421,7 @@ int processAndCommands(char *cmd) {
         free(tokens);
         return 0;
     }
-    return processPipeCommands(cmd);
+    return processOrCommands(cmd);
 }
 
 void processCommand(char *cmd) {
