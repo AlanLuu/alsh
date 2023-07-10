@@ -541,10 +541,17 @@ int processHistoryExclamations(char *cmd) {
 
         while (*cmdCounter) {
             if (*cmdCounter == '!') {
-                size_t cmdCounterLength = strlen(cmdCounter);
-                if (cmdCounterLength <= 1) { //Only ! in command
-                    free(tempCmd);
-                    return 0;
+                if (!*(cmdCounter + 1)) {
+                    if (*cmd == '!') { //Only ! in command
+                        free(tempCmd);
+                        return 0;
+                    } else { //Single ! at the end of command
+                        *tempCmdCounter++ = *cmdCounter++;
+                        *tempCmdCounter = '\0';
+                        strcpy(cmd, tempCmd);
+                        free(tempCmd);
+                        return -1;
+                    }
                 }
 
                 bool isNegative = false;
