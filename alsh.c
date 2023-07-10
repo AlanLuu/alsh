@@ -195,6 +195,9 @@ int* handleRedirectStdin(char *cmd) {
 }
 
 int executeCommand(char *cmd) {
+    if (cmd == NULL || !*cmd) {
+        return 1;
+    }
     int exitStatus = 0;
     char *tempCmd = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
     char *cmdPtr = cmd;
