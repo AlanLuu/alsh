@@ -1,4 +1,5 @@
 #include <ctype.h>
+#include <errno.h>
 #include <pwd.h>
 #include <signal.h>
 #include <stdbool.h>
@@ -268,11 +269,30 @@ int executeCommand(char *cmd) {
             *(lastSlashPos + 1) = '\0';
             if (chdir(cwd) != 0) {
                 //Should not happen
-                fprintf(stderr, "%s: cd: Failed to change to parent directory\n", SHELL_NAME);
+                switch (errno) {
+                    case EACCES:
+                        fprintf(stderr, "%s: cd: %s: Permission denied\n", SHELL_NAME, arg);
+                        break;
+                    default:
+                        fprintf(stderr, "%s: cd: Failed to change to parent directory\n", SHELL_NAME);
+                        break;
+                }
                 exitStatus = 1;
             }
         } else if (chdir(arg) != 0) { //Change to specified directory
-            fprintf(stderr, "%s: cd: %s: No such file or directory\n", SHELL_NAME, arg);
+            char *err;
+            switch (errno) {
+                case EACCES:
+                    err = "Permission denied";
+                    break;
+                case ENOENT:
+                    err = "No such file or directory";
+                    break;
+                default:
+                    err = "Failed to change to directory";
+                    break;
+            }
+            fprintf(stderr, "%s: cd: %s: %s\n", SHELL_NAME, arg, err);
             exitStatus = 1;
         }
         free(tempCmd);
