@@ -22,7 +22,7 @@
 static char cwd[CWD_BUFFER_SIZE]; //Current working directory
 static struct passwd *pwd; //User info
 
-bool isRootUser() {
+bool isRootUser(void) {
     return pwd->pw_uid == 0;
 }
 
@@ -30,11 +30,11 @@ struct {
     char *elements[HISTORY_MAX_ELEMENTS];
     int count;
 } history;
-#define FREE_HISTORY_ELEMENTS do { \
-    for (int i = 0; i < history.count; i++) { \
-        free(history.elements[i]); \
-    } \
-} while (0)
+void freeHistoryElements(void) {
+    for (int i = 0; i < history.count; i++) {
+        free(history.elements[i]);
+    }
+}
 
 static bool sigintReceived = false;
 void sigintHandler(int sig) {
@@ -302,7 +302,7 @@ int executeCommand(char *cmd) {
             char flagChr = flag[1];
             switch (flagChr) {
                 case 'c':
-                    FREE_HISTORY_ELEMENTS;
+                    freeHistoryElements();
                     history.count = 0;
                     break;
                 case 'w': {
@@ -730,7 +730,7 @@ int main(int argc, char *argv[]) {
             }
         } while (sigintReceived);
 
-        FREE_HISTORY_ELEMENTS;
+        freeHistoryElements();
     }
     free(cmd);
     return 0;
