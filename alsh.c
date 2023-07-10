@@ -81,15 +81,6 @@ char** split(char *str, char *delim) {
 }
 
 /**
- * Empty strings only contain a null character
- * Note that this function returns true if str points to a null character
- * no matter if there are other characters in the string
-*/
-bool strIsEmpty(char *str) {
-    return *str == '\0';
-}
-
-/**
  * Trims whitespace from the beginning and end of a string
  * If the string only contains whitespace, it will be trimmed to an empty string
  * Returns false if the string is empty, true otherwise
@@ -98,20 +89,24 @@ bool trimWhitespaceFromEnds(char *str) {
     size_t len = strlen(str);
     if (len == 0) return false;
 
+    bool hasWhitespace = false;
     size_t i = 0;
-    while (str[i] == ' ') {
-        i++;
+    if (str[i] == ' ') {
+        hasWhitespace = true;
+        while (str[i] == ' ') {
+            i++;
+        }
     }
     size_t j = len - 1;
-    while (j > 0 && str[j] == ' ') {
-        j--;
+    if (j > 0 && str[j] == ' ') {
+        hasWhitespace = true;
+        while (j > 0 && str[j] == ' ') {
+            j--;
+        }
     }
 
-    if (i != 0 && j != len - 1 && str[i] == '\0' && str[j] == '\0') {
-        //String is all whitespace
-        *str = '\0';
-    } else {
-        int k = 0;
+    if (hasWhitespace) {
+        size_t k = 0;
         while (i <= j) {
             str[k] = str[i];
             i++;
@@ -119,6 +114,7 @@ bool trimWhitespaceFromEnds(char *str) {
         }
         str[k] = '\0';
     }
+    
     return true;
 }
 
@@ -134,7 +130,7 @@ int* handleRedirectStdout(char *cmd) {
         }
         trimWhitespaceFromEnds(fileName);
 
-        if (*fileName == '\0') {
+        if (!*fileName) {
             fprintf(stderr, "%s: %s: Missing file name\n", SHELL_NAME, *fopenMode == 'a' ? ">>" : ">");
             status = malloc(sizeof(int));
             *status = -1;
@@ -410,7 +406,7 @@ int processOrCommands(char *cmd) {
         char **tokens = split(tempCmd, "||");
         for (int i = 0; tokens[i] != NULL; i++) {
             trimWhitespaceFromEnds(tokens[i]);
-            if (!strIsEmpty(tokens[i])) {
+            if (*tokens[i]) {
                 int exitStatus = processPipeCommands(tokens[i], strchr(tokens[i], '|'));
                 if (exitStatus == 0 || sigintReceived) {
                     free(tempCmd);
@@ -435,7 +431,7 @@ int processAndCommands(char *cmd) {
         char **tokens = split(tempCmd, "&&");
         for (int i = 0; tokens[i] != NULL; i++) {
             trimWhitespaceFromEnds(tokens[i]);
-            if (!strIsEmpty(tokens[i])) {
+            if (*tokens[i]) {
                 int exitStatus = processOrCommands(tokens[i]);
                 if (exitStatus != 0) {
                     free(tempCmd);
@@ -616,7 +612,7 @@ int main(int argc, char *argv[]) {
         while (fgets(cmd, COMMAND_BUFFER_SIZE, fp) != NULL) {
             removeNewlineIfExists(cmd);
             bool trimSuccess = trimWhitespaceFromEnds(cmd);
-            if (*cmd != COMMENT_CHAR && trimSuccess && !strIsEmpty(cmd)) {
+            if (*cmd && *cmd != COMMENT_CHAR && trimSuccess) {
                 processCommand(cmd);
             }
         }
@@ -634,7 +630,7 @@ int main(int argc, char *argv[]) {
             while (fgets(historyLine, COMMAND_BUFFER_SIZE, historyfp) != NULL) {
                 removeNewlineIfExists(historyLine);
                 bool trimSuccess = trimWhitespaceFromEnds(historyLine);
-                if (*historyLine != COMMENT_CHAR && trimSuccess && !strIsEmpty(historyLine)) {
+                if (*historyLine && *historyLine != COMMENT_CHAR && trimSuccess) {
                     addCommandToHistory(historyLine);
                 }
             }
@@ -662,7 +658,7 @@ int main(int argc, char *argv[]) {
             while (fgets(cmd, COMMAND_BUFFER_SIZE, stdin) != NULL) {
                 removeNewlineIfExists(cmd);
                 bool trimSuccess = trimWhitespaceFromEnds(cmd);
-                if (trimSuccess && !strIsEmpty(cmd)) {
+                if (*cmd && trimSuccess) {
                     int processHistoryStatus = processHistoryExclamations(cmd);
                     switch (processHistoryStatus) {
                         case 0:
