@@ -43,29 +43,6 @@ void sigintHandler(int sig) {
 }
 
 /**
- * Gets the home directory of the user associated with the current process
- * and stores it in buffer
-*/
-void getHomeDirectory(char *buffer) {
-    *buffer = '/';
-    *(buffer + 1) = '\0';
-    if (isRootUser()) {
-        strcat(buffer, "root");
-    } else {
-        strcat(buffer, "home/");
-        strcat(buffer, pwd->pw_name);
-    }
-}
-
-/**
- * Same as getHomeDirectory() but appends a trailing slash to the end
-*/
-void getHomeDirectory_ts(char *buffer) {
-    getHomeDirectory(buffer);
-    strcat(buffer, "/");
-}
-
-/**
  * Removes the newline character from the end of a string if it exists
 */
 void removeNewlineIfExists(char *str) {
@@ -271,9 +248,7 @@ int executeCommand(char *cmd) {
     if (strcmp(tokens[0], "cd") == 0) {
         char *arg = tokens[1];
         if (arg == NULL) { //No argument, change to home directory
-            char homeDir[USERNAME_MAX_LENGTH + 6];
-            getHomeDirectory(homeDir);
-            if (chdir(homeDir) != 0) {
+            if (chdir(pwd->pw_dir) != 0) {
                 //Should not happen
                 fprintf(stderr, "%s: cd: Failed to change to home directory\n", SHELL_NAME);
                 exitStatus = 1;
@@ -310,8 +285,8 @@ int executeCommand(char *cmd) {
                     //Maximum of 32 characters for <username>
                     //20 characters for the rest of the path
                     char historyFile[USERNAME_MAX_LENGTH + 20];
-                    getHomeDirectory_ts(historyFile);
-                    strcat(historyFile, HISTORY_FILE_NAME);
+                    strcpy(historyFile, pwd->pw_dir);
+                    strcat(historyFile, "/" HISTORY_FILE_NAME);
                     FILE *historyfp = fopen(historyFile, "w");
                     if (historyfp == NULL) {
                         fprintf(stderr, "%s: %s: Failed to open history file\n", SHELL_NAME, HISTORY_COMMAND);
@@ -617,7 +592,7 @@ void printIntro(void) {
 
 void printPrompt(void) {
     if (getcwd(cwd, CWD_BUFFER_SIZE) == NULL) {
-        fprintf(stderr, "Error getting current working directory, exiting shell...\n");
+        fprintf(stderr, "%s: Error getting current working directory, exiting shell...\n", SHELL_NAME);
         exit(1);
     }
     if (isRootUser()) {
@@ -651,8 +626,8 @@ int main(int argc, char *argv[]) {
         //Maximum of 32 characters for <username>
         //20 characters for the rest of the path
         char historyFile[USERNAME_MAX_LENGTH + 20];
-        getHomeDirectory_ts(historyFile);
-        strcat(historyFile, HISTORY_FILE_NAME);
+        strcpy(historyFile, pwd->pw_dir);
+        strcat(historyFile, "/" HISTORY_FILE_NAME);
         FILE *historyfp = fopen(historyFile, "r");
         if (historyfp != NULL) {
             char *historyLine = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
