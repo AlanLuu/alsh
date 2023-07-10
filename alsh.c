@@ -104,7 +104,17 @@ char** split(char *str, char *delim) {
 }
 
 /**
+ * Empty strings only contain a null character
+ * Note that this function returns true if str points to a null character
+ * no matter if there are other characters in the string
+*/
+bool strIsEmpty(char *str) {
+    return *str == '\0';
+}
+
+/**
  * Trims whitespace from the beginning and end of a string
+ * If the string only contains whitespace, it will be trimmed to an empty string
  * Returns false if the string is empty, true otherwise
 */
 bool trimWhitespaceFromEnds(char *str) {
@@ -116,16 +126,22 @@ bool trimWhitespaceFromEnds(char *str) {
         i++;
     }
     size_t j = len - 1;
-    while (str[j] == ' ') {
+    while (j > 0 && str[j] == ' ') {
         j--;
     }
-    int k = 0;
-    while (i <= j) {
-        str[k] = str[i];
-        i++;
-        k++;
+
+    if (i != 0 && j != len - 1 && str[i] == '\0' && str[j] == '\0') {
+        //String is all whitespace
+        *str = '\0';
+    } else {
+        int k = 0;
+        while (i <= j) {
+            str[k] = str[i];
+            i++;
+            k++;
+        }
+        str[k] = '\0';
     }
-    str[k] = '\0';
     return true;
 }
 
@@ -419,11 +435,13 @@ int processOrCommands(char *cmd) {
         char **tokens = split(tempCmd, "||");
         for (int i = 0; tokens[i] != NULL; i++) {
             trimWhitespaceFromEnds(tokens[i]);
-            int exitStatus = processPipeCommands(tokens[i], strchr(tokens[i], '|'));
-            if (exitStatus == 0 || sigintReceived) {
-                free(tempCmd);
-                free(tokens);
-                return exitStatus;
+            if (!strIsEmpty(tokens[i])) {
+                int exitStatus = processPipeCommands(tokens[i], strchr(tokens[i], '|'));
+                if (exitStatus == 0 || sigintReceived) {
+                    free(tempCmd);
+                    free(tokens);
+                    return exitStatus;
+                }
             }
         }
         free(tempCmd);
@@ -442,11 +460,13 @@ int processAndCommands(char *cmd) {
         char **tokens = split(tempCmd, "&&");
         for (int i = 0; tokens[i] != NULL; i++) {
             trimWhitespaceFromEnds(tokens[i]);
-            int exitStatus = processOrCommands(tokens[i]);
-            if (exitStatus != 0) {
-                free(tempCmd);
-                free(tokens);
-                return exitStatus;
+            if (!strIsEmpty(tokens[i])) {
+                int exitStatus = processOrCommands(tokens[i]);
+                if (exitStatus != 0) {
+                    free(tempCmd);
+                    free(tokens);
+                    return exitStatus;
+                }
             }
         }
         free(tempCmd);
@@ -621,7 +641,7 @@ int main(int argc, char *argv[]) {
         while (fgets(cmd, COMMAND_BUFFER_SIZE, fp) != NULL) {
             removeNewlineIfExists(cmd);
             bool trimSuccess = trimWhitespaceFromEnds(cmd);
-            if (*cmd != COMMENT_CHAR && trimSuccess) {
+            if (*cmd != COMMENT_CHAR && trimSuccess && !strIsEmpty(cmd)) {
                 processCommand(cmd);
             }
         }
@@ -639,7 +659,7 @@ int main(int argc, char *argv[]) {
             while (fgets(historyLine, COMMAND_BUFFER_SIZE, historyfp) != NULL) {
                 removeNewlineIfExists(historyLine);
                 bool trimSuccess = trimWhitespaceFromEnds(historyLine);
-                if (*historyLine != COMMENT_CHAR && trimSuccess) {
+                if (*historyLine != COMMENT_CHAR && trimSuccess && !strIsEmpty(historyLine)) {
                     addCommandToHistory(historyLine);
                 }
             }
@@ -667,7 +687,7 @@ int main(int argc, char *argv[]) {
             while (fgets(cmd, COMMAND_BUFFER_SIZE, stdin) != NULL) {
                 removeNewlineIfExists(cmd);
                 bool trimSuccess = trimWhitespaceFromEnds(cmd);
-                if (trimSuccess) {
+                if (trimSuccess && !strIsEmpty(cmd)) {
                     int processHistoryStatus = processHistoryExclamations(cmd);
                     switch (processHistoryStatus) {
                         case 0:
