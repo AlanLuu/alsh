@@ -22,6 +22,17 @@
 static char cwd[CWD_BUFFER_SIZE]; //Current working directory
 static struct passwd *pwd; //User info
 
+bool isInHomeDirectory(void) {
+    char *cwdPtr = cwd;
+    char *homeDirPtr = pwd->pw_dir;
+    while (*homeDirPtr) {
+        if (*cwdPtr++ != *homeDirPtr++) {
+            return false;
+        }
+    }
+    return true;
+}
+
 bool isRootUser(void) {
     return pwd->pw_uid == 0;
 }
@@ -594,12 +605,19 @@ void printPrompt(void) {
         fprintf(stderr, "%s: Error getting current working directory, exiting shell...\n", SHELL_NAME);
         exit(1);
     }
-    if (isRootUser()) {
-        //Print red prompt
-        printf("\033[1;31m%s-root:\033[1;34m%s\033[0m# ", SHELL_NAME, cwd);
+
+    //If in home directory, print ~ instead of /home/<username>
+    //Print red prompt if user is root, otherwise print regular prompt
+    if (isInHomeDirectory()) {
+        printf(isRootUser()
+            ? "\033[1;31m%s-root:\033[1;34m~%s\033[0m# "
+            : "%s:\033[1;34m~%s\033[0m$ ", SHELL_NAME, (cwd + strlen(pwd->pw_dir))
+        );
     } else {
-        //Print regular prompt
-        printf("%s:\033[1;34m%s\033[0m$ ", SHELL_NAME, cwd);
+        printf(isRootUser()
+            ? "\033[1;31m%s-root:\033[1;34m%s\033[0m# "
+            : "%s:\033[1;34m%s\033[0m$ ", SHELL_NAME, cwd
+        );
     }
 }
 
