@@ -637,12 +637,12 @@ void printPrompt(void) {
     //Print red prompt if user is root, otherwise print regular prompt
     if (isInHomeDirectory()) {
         printf(isRootUser()
-            ? "\033[1;31m%s-root:\033[1;34m~%s\033[0m# "
+            ? "\033[38;5;196;1m%s-root:\033[1;34m~%s\033[0m# "
             : "%s:\033[1;34m~%s\033[0m$ ", SHELL_NAME, (cwd + strlen(pwd->pw_dir))
         );
     } else {
         printf(isRootUser()
-            ? "\033[1;31m%s-root:\033[1;34m%s\033[0m# "
+            ? "\033[38;5;196;1m%s-root:\033[1;34m%s\033[0m# "
             : "%s:\033[1;34m%s\033[0m$ ", SHELL_NAME, cwd
         );
     }
