@@ -41,25 +41,21 @@ void StringLinkedList_append(StringLinkedList *list, char *str, bool strMustBeFr
 }
 
 char* StringLinkedList_get(StringLinkedList *list, int index) {
-    StringNode *temp = list->head;
     int i = 0;
-    while (temp != NULL) {
+    for (StringNode *temp = list->head; temp != NULL; temp = temp->next) {
         if (i++ == index) {
             return temp->str;
         }
-        temp = temp->next;
     }
     return NULL;
 }
 
 int StringLinkedList_indexOf(StringLinkedList *list, char *str) {
-    StringNode *temp = list->head;
     int i = 0;
-    while (temp != NULL) {
+    for (StringNode *temp = list->head; temp != NULL; temp = temp->next) {
         if (strcmp(temp->str, str) == 0) {
             return i;
         }
-        temp = temp->next;
         i++;
     }
     return -1;
@@ -134,22 +130,18 @@ void StringLinkedList_removeValue(StringLinkedList *list, char *str) {
 }
 
 int StringLinkedList_size(StringLinkedList *list) {
-    StringNode *temp = list->head;
     int size = 0;
-    while (temp != NULL) {
+    for (StringNode *temp = list->head; temp != NULL; temp = temp->next) {
         size++;
-        temp = temp->next;
     }
     return size;
 }
 
 char** StringLinkedList_toArray(StringLinkedList *list) {
     char **array = malloc(sizeof(char*) * list->size);
-    StringNode *temp = list->head;
     int i = 0;
-    while (temp != NULL) {
+    for (StringNode *temp = list->head; temp != NULL; temp = temp->next) {
         array[i++] = temp->str;
-        temp = temp->next;
     }
     return array;
 }

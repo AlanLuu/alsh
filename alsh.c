@@ -401,8 +401,8 @@ int processPipeCommands(char *cmd, char *orChr) {
         int terminal_stdin = dup(STDIN_FILENO);
         int terminal_stdout = dup(STDOUT_FILENO);
         int fd[2];
-        StringNode *temp = tokens->head;
-        while (temp != tokens->tail) {
+        StringNode *temp;
+        for (temp = tokens->head; temp != tokens->tail; temp = temp->next) {
             if (pipe(fd) != 0) {
                 //Should not happen
                 fprintf(stderr, "%s: Failed to create pipe\n", SHELL_NAME);
@@ -420,7 +420,6 @@ int processPipeCommands(char *cmd, char *orChr) {
             while (wait(NULL) > 0);
             dup2(fd[0], STDIN_FILENO);
             close(fd[1]);
-            temp = temp->next;
         }
         int exitStatus = executeCommand(temp->str);
         dup2(terminal_stdout, STDOUT_FILENO);
@@ -439,8 +438,7 @@ int processOrCommands(char *cmd) {
         strcpy(tempCmd, cmd);
 
         StringLinkedList *tokens = split(tempCmd, "||");
-        StringNode *temp = tokens->head;
-        while (temp != NULL) {
+        for (StringNode *temp = tokens->head; temp != NULL; temp = temp->next) {
             trimWhitespaceFromEnds(temp->str);
             if (*temp->str) {
                 int exitStatus = processPipeCommands(temp->str, strchr(temp->str, '|'));
@@ -450,7 +448,6 @@ int processOrCommands(char *cmd) {
                     return exitStatus;
                 }
             }
-            temp = temp->next;
         }
         free(tempCmd);
         StringLinkedList_free(tokens);
@@ -466,8 +463,7 @@ int processAndCommands(char *cmd) {
         strcpy(tempCmd, cmd);
 
         StringLinkedList *tokens = split(tempCmd, "&&");
-        StringNode *temp = tokens->head;
-        while (temp != NULL) {
+        for (StringNode *temp = tokens->head; temp != NULL; temp = temp->next) {
             trimWhitespaceFromEnds(temp->str);
             if (*temp->str) {
                 int exitStatus = processOrCommands(temp->str);
@@ -477,7 +473,6 @@ int processAndCommands(char *cmd) {
                     return exitStatus;
                 }
             }
-            temp = temp->next;
         }
         free(tempCmd);
         StringLinkedList_free(tokens);
@@ -500,11 +495,9 @@ void processCommand(char *cmd) {
         strcpy(tempCmd, cmd);
 
         StringLinkedList *tokens = split(tempCmd, ";");
-        StringNode *temp = tokens->head;
-        while (temp != NULL) {
+        for (StringNode *temp = tokens->head; temp != NULL; temp = temp->next) {
             trimWhitespaceFromEnds(temp->str);
             (void) processAndCommands(temp->str);
-            temp = temp->next;
         }
 
         free(tempCmd);
