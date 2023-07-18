@@ -9,6 +9,8 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include "utils/stringlinkedlist.h"
+
 #define COMMAND_BUFFER_SIZE 4096
 #define COMMENT_CHAR '#'
 #define CWD_BUFFER_SIZE 4096
@@ -17,7 +19,6 @@
 #define HISTORY_FILE_NAME ".alsh_history"
 #define HISTORY_MAX_ELEMENTS 100
 #define SHELL_NAME "alsh"
-#define SPLIT_ARR_MAX_ELEMENTS 100
 #define USERNAME_MAX_LENGTH 32
 
 static char cwd[CWD_BUFFER_SIZE]; //Current working directory
@@ -77,18 +78,17 @@ void removeStrFromArrIfExists(char **tokens, char *str) {
 }
 
 /**
- * Splits a string from the first occurrence of delim
- * Remember to free() the returned string
+ * Splits a string from the first occurrence of delim and returns a StringLinkedList
+ * pointer that refers to the first node of the StringLinkedList
+ * Remember to free() the returned StringLinkedList
 */
-char** split(char *str, char *delim) {
+StringLinkedList* split(char *str, char *delim) {
+    StringLinkedList *tokens = StringLinkedList_create();
     char *token = strtok(str, delim);
-    char **tokens = malloc(sizeof(char*) * SPLIT_ARR_MAX_ELEMENTS);
-    int i = 0;
     while (token != NULL) {
-        tokens[i++] = token;
+        StringLinkedList_append(tokens, token, false);
         token = strtok(NULL, delim);
     }
-    tokens[i] = NULL;
     return tokens;
 }
 
@@ -218,14 +218,15 @@ int executeCommand(char *cmd) {
     while (*cmdPtr) {
         switch (*cmdPtr) {
             case '<':
-            case '>':
+            case '>': {
+                bool noSpaceOnLeft = *(cmdPtr - 1) != ' ' && *(cmdPtr - 1) != '>';
+                bool noSpaceOnRight = *(cmdPtr + 1) != ' ' && *(cmdPtr + 1) != '>';
+
                 //Avoid ub if cmdPtr is at the beginning of the string
-                if (cmdIndex > 0
-                    && (*(cmdPtr - 1) != ' '
-                        || (*(cmdPtr + 1) != ' ' && *(cmdPtr + 1) != '>')
-                    )
-                ) {
-                    *tempCmdPtr++ = ' ';
+                if (cmdIndex > 0 && (noSpaceOnLeft || noSpaceOnRight)) {
+                    if (noSpaceOnLeft) {
+                        *tempCmdPtr++ = ' ';
+                    }
                     *tempCmdPtr++ = *cmdPtr++;
                     if (*(cmdPtr - 1) == '>' && *cmdPtr == '>') {
                         *tempCmdPtr++ = *cmdPtr++;
@@ -235,6 +236,7 @@ int executeCommand(char *cmd) {
                     *tempCmdPtr++ = *cmdPtr++;
                 }
                 break;
+            }
             default:
                 *tempCmdPtr++ = *cmdPtr++;
                 break;
@@ -243,21 +245,16 @@ int executeCommand(char *cmd) {
     }
     *tempCmdPtr = '\0';
     
-    char **tokens = split(tempCmd, " ");
+    StringLinkedList *tokens = split(tempCmd, " ");
 
     //Add --color=auto to ls command
-    if (strcmp(tokens[0], "ls") == 0) {
-        int i = 0;
-        while (tokens[i] != NULL) {
-            i++;
-        }
-        tokens[i++] = "--color=auto";
-        tokens[i] = NULL;
+    if (strcmp(tokens->head->str, "ls") == 0) {
+        StringLinkedList_append(tokens, "--color=auto", false);
     }
 
     //cd command
-    if (strcmp(tokens[0], "cd") == 0) {
-        char *arg = tokens[1];
+    if (strcmp(tokens->head->str, "cd") == 0) {
+        char *arg = tokens->head->next->str;
         if (arg == NULL) { //No argument, change to home directory
             if (chdir(pwd->pw_dir) != 0) {
                 //Should not happen
@@ -296,13 +293,13 @@ int executeCommand(char *cmd) {
             exitStatus = 1;
         }
         free(tempCmd);
-        free(tokens);
+        StringLinkedList_free(tokens);
         return exitStatus;
     }
 
     //history command
-    if (strcmp(tokens[0], HISTORY_COMMAND) == 0) {
-        char *flag = tokens[1];
+    if (strcmp(tokens->head->str, HISTORY_COMMAND) == 0) {
+        char *flag = tokens->head->next->str;
         if (flag != NULL) {
             char flagChr = flag[1];
             switch (flagChr) {
@@ -340,7 +337,7 @@ int executeCommand(char *cmd) {
             }
         }
         free(tempCmd);
-        free(tokens);
+        StringLinkedList_free(tokens);
         return exitStatus;
     }
 
@@ -348,7 +345,7 @@ int executeCommand(char *cmd) {
     if (*stdinStatus == -1) {
         free(stdinStatus);
         free(tempCmd);
-        free(tokens);
+        StringLinkedList_free(tokens);
         return 1;
     }
     int *stdoutStatus = handleRedirectStdout(cmd);
@@ -356,17 +353,25 @@ int executeCommand(char *cmd) {
         free(stdinStatus);
         free(stdoutStatus);
         free(tempCmd);
-        free(tokens);
+        StringLinkedList_free(tokens);
         return 1;
     }
+
     pid_t cid = fork();
     if (cid == 0) {
         char *strsToRemove[] = {"<", ">", ">>"};
         for (size_t i = 0; i < sizeof(strsToRemove) / sizeof(*strsToRemove); i++) {
-            removeStrFromArrIfExists(tokens, strsToRemove[i]);
+            char *strToRemove = strsToRemove[i];
+            int strToRemoveIndex = StringLinkedList_indexOf(tokens, strToRemove);
+            if (strToRemoveIndex != -1) {
+                (void) StringLinkedList_removeIndex(tokens, strToRemoveIndex);
+                (void) StringLinkedList_removeIndex(tokens, strToRemoveIndex);
+            }
         }
-        execvp(tokens[0], tokens);
-        fprintf(stderr, "%s: command not found\n", tokens[0]);
+        StringLinkedList_append(tokens, NULL, false);
+        char **tokensArr = StringLinkedList_toArray(tokens);
+        execvp(tokens->head->str, tokensArr);
+        fprintf(stderr, "%s: command not found\n", tokens->head->str);
         exit(1);
     }
 
@@ -383,7 +388,7 @@ int executeCommand(char *cmd) {
     free(stdinStatus);
     free(stdoutStatus);
     free(tempCmd);
-    free(tokens);
+    StringLinkedList_free(tokens);
     return exitStatus;
 }
 
@@ -391,41 +396,37 @@ int processPipeCommands(char *cmd, char *orChr) {
     if (orChr != NULL) {
         char *tempCmd = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
         strcpy(tempCmd, cmd);
-
-        char **tokens = split(tempCmd, "|");
-        int tokensCount = 0;
-        while (tokens[tokensCount] != NULL) {
-            trimWhitespaceFromEnds(tokens[tokensCount]);
-            tokensCount++;
-        }
+        
+        StringLinkedList *tokens = split(tempCmd, "|");
         int terminal_stdin = dup(STDIN_FILENO);
         int terminal_stdout = dup(STDOUT_FILENO);
         int fd[2];
-        int i;
-        for (i = 0; i < tokensCount - 1; i++) {
+        StringNode *temp = tokens->head;
+        while (temp != tokens->tail) {
             if (pipe(fd) != 0) {
                 //Should not happen
                 fprintf(stderr, "%s: Failed to create pipe\n", SHELL_NAME);
                 free(tempCmd);
-                free(tokens);
+                StringLinkedList_free(tokens);
                 return 1;
             }
             pid_t cid = fork();
             if (cid == 0) {
                 dup2(fd[1], STDOUT_FILENO);
                 close(fd[0]);
-                (void) executeCommand(tokens[i]);
+                (void) executeCommand(temp->str);
                 exit(0);
             }
             while (wait(NULL) > 0);
             dup2(fd[0], STDIN_FILENO);
             close(fd[1]);
+            temp = temp->next;
         }
-        int exitStatus = executeCommand(tokens[i]);
+        int exitStatus = executeCommand(temp->str);
         dup2(terminal_stdout, STDOUT_FILENO);
         dup2(terminal_stdin, STDIN_FILENO);
         free(tempCmd);
-        free(tokens);
+        StringLinkedList_free(tokens);
         return exitStatus;
     }
     return executeCommand(cmd);
@@ -437,20 +438,22 @@ int processOrCommands(char *cmd) {
         char *tempCmd = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
         strcpy(tempCmd, cmd);
 
-        char **tokens = split(tempCmd, "||");
-        for (int i = 0; tokens[i] != NULL; i++) {
-            trimWhitespaceFromEnds(tokens[i]);
-            if (*tokens[i]) {
-                int exitStatus = processPipeCommands(tokens[i], strchr(tokens[i], '|'));
+        StringLinkedList *tokens = split(tempCmd, "||");
+        StringNode *temp = tokens->head;
+        while (temp != NULL) {
+            trimWhitespaceFromEnds(temp->str);
+            if (*temp->str) {
+                int exitStatus = processPipeCommands(temp->str, strchr(temp->str, '|'));
                 if (exitStatus == 0 || sigintReceived) {
                     free(tempCmd);
-                    free(tokens);
+                    StringLinkedList_free(tokens);
                     return exitStatus;
                 }
             }
+            temp = temp->next;
         }
         free(tempCmd);
-        free(tokens);
+        StringLinkedList_free(tokens);
         return 1;
     }
     return processPipeCommands(cmd, orChr);
@@ -462,20 +465,22 @@ int processAndCommands(char *cmd) {
         char *tempCmd = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
         strcpy(tempCmd, cmd);
 
-        char **tokens = split(tempCmd, "&&");
-        for (int i = 0; tokens[i] != NULL; i++) {
-            trimWhitespaceFromEnds(tokens[i]);
-            if (*tokens[i]) {
-                int exitStatus = processOrCommands(tokens[i]);
+        StringLinkedList *tokens = split(tempCmd, "&&");
+        StringNode *temp = tokens->head;
+        while (temp != NULL) {
+            trimWhitespaceFromEnds(temp->str);
+            if (*temp->str) {
+                int exitStatus = processOrCommands(temp->str);
                 if (exitStatus != 0) {
                     free(tempCmd);
-                    free(tokens);
+                    StringLinkedList_free(tokens);
                     return exitStatus;
                 }
             }
+            temp = temp->next;
         }
         free(tempCmd);
-        free(tokens);
+        StringLinkedList_free(tokens);
         return 0;
     }
     return processOrCommands(cmd);
@@ -494,13 +499,16 @@ void processCommand(char *cmd) {
         char *tempCmd = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
         strcpy(tempCmd, cmd);
 
-        char **tokens = split(tempCmd, ";");
-        for (int i = 0; tokens[i] != NULL; i++) {
-            trimWhitespaceFromEnds(tokens[i]);
-            (void) processAndCommands(tokens[i]);
+        StringLinkedList *tokens = split(tempCmd, ";");
+        StringNode *temp = tokens->head;
+        while (temp != NULL) {
+            trimWhitespaceFromEnds(temp->str);
+            (void) processAndCommands(temp->str);
+            temp = temp->next;
         }
+
         free(tempCmd);
-        free(tokens);
+        StringLinkedList_free(tokens);
         return;
     }
 
