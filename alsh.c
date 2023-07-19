@@ -254,7 +254,8 @@ int executeCommand(char *cmd) {
 
     //cd command
     if (strcmp(tokens->head->str, "cd") == 0) {
-        char *arg = tokens->head->next->str;
+        StringNode *argNode = tokens->head->next;
+        char *arg = argNode != NULL ? argNode->str : NULL;
         if (arg == NULL) { //No argument, change to home directory
             if (chdir(pwd->pw_dir) != 0) {
                 //Should not happen
@@ -299,7 +300,8 @@ int executeCommand(char *cmd) {
 
     //history command
     if (strcmp(tokens->head->str, HISTORY_COMMAND) == 0) {
-        char *flag = tokens->head->next->str;
+        StringNode *argNode = tokens->head->next;
+        char *flag = argNode != NULL ? argNode->str : NULL;
         if (flag != NULL) {
             char flagChr = flag[1];
             switch (flagChr) {
