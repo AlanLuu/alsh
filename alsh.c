@@ -166,8 +166,7 @@ int* handleRedirectStdin(char *cmd) {
     char *stdinRedirectChr = strchr(cmd, '<');
     int *status;
     if (stdinRedirectChr != NULL) {
-        char *tempCmd = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
-        strcpy(tempCmd, cmd);
+        char *tempCmd = strdup(cmd);
 
         char *fileName = strchr(tempCmd, '<') + 1;
         while (*fileName == ' ') {
@@ -398,9 +397,7 @@ int executeCommand(char *cmd) {
 
 int processPipeCommands(char *cmd, char *orChr) {
     if (orChr != NULL) {
-        char *tempCmd = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
-        strcpy(tempCmd, cmd);
-        
+        char *tempCmd = strdup(cmd);
         StringLinkedList *tokens = split(tempCmd, "|");
         int terminal_stdin = dup(STDIN_FILENO);
         int terminal_stdout = dup(STDOUT_FILENO);
@@ -440,9 +437,7 @@ int processPipeCommands(char *cmd, char *orChr) {
 int processOrCommands(char *cmd) {
     char *orChr = strchr(cmd, '|');
     if (orChr != NULL && *(orChr + 1) == '|') {
-        char *tempCmd = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
-        strcpy(tempCmd, cmd);
-
+        char *tempCmd = strdup(cmd);
         StringLinkedList *tokens = split(tempCmd, "||");
         for (StringNode *temp = tokens->head; temp != NULL; temp = temp->next) {
             trimWhitespaceFromEnds(temp->str);
@@ -465,9 +460,7 @@ int processOrCommands(char *cmd) {
 int processAndCommands(char *cmd) {
     char *andChr = strchr(cmd, '&');
     if (andChr != NULL && *(andChr + 1) == '&') {
-        char *tempCmd = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
-        strcpy(tempCmd, cmd);
-
+        char *tempCmd = strdup(cmd);
         StringLinkedList *tokens = split(tempCmd, "&&");
         for (StringNode *temp = tokens->head; temp != NULL; temp = temp->next) {
             trimWhitespaceFromEnds(temp->str);
@@ -497,15 +490,12 @@ void processCommand(char *cmd) {
     //Check for semicolon operators
     char *semicolonChr = strchr(cmd, ';');
     if (semicolonChr != NULL) {
-        char *tempCmd = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
-        strcpy(tempCmd, cmd);
-
+        char *tempCmd = strdup(cmd);
         StringLinkedList *tokens = split(tempCmd, ";");
         for (StringNode *temp = tokens->head; temp != NULL; temp = temp->next) {
             trimWhitespaceFromEnds(temp->str);
             (void) processAndCommands(temp->str);
         }
-
         free(tempCmd);
         StringLinkedList_free(tokens);
         return;
@@ -531,11 +521,9 @@ void addCommandToHistory(char *cmd) {
         for (int i = 0; i < HISTORY_MAX_ELEMENTS - 1; i++) {
             history.elements[i] = history.elements[i + 1];
         }
-        history.elements[HISTORY_MAX_ELEMENTS - 1] = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
-        strcpy(history.elements[HISTORY_MAX_ELEMENTS - 1], cmd);
+        history.elements[HISTORY_MAX_ELEMENTS - 1] = strdup(cmd);
     } else {
-        history.elements[history.count] = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
-        strcpy(history.elements[history.count], cmd);
+        history.elements[history.count] = strdup(cmd);
         history.count++;
     }
 }
@@ -681,15 +669,13 @@ int main(int argc, char *argv[]) {
         strcat(historyFile, "/" HISTORY_FILE_NAME);
         FILE *historyfp = fopen(historyFile, "r");
         if (historyfp != NULL) {
-            char *historyLine = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
-            while (fgets(historyLine, COMMAND_BUFFER_SIZE, historyfp) != NULL) {
-                removeNewlineIfExists(historyLine);
-                bool trimSuccess = trimWhitespaceFromEnds(historyLine);
-                if (*historyLine && *historyLine != COMMENT_CHAR && trimSuccess) {
-                    addCommandToHistory(historyLine);
+            while (fgets(cmd, COMMAND_BUFFER_SIZE, historyfp) != NULL) {
+                removeNewlineIfExists(cmd);
+                bool trimSuccess = trimWhitespaceFromEnds(cmd);
+                if (*cmd && *cmd != COMMENT_CHAR && trimSuccess) {
+                    addCommandToHistory(cmd);
                 }
             }
-            free(historyLine);
             fclose(historyfp);
         }
 
