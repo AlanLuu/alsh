@@ -381,9 +381,11 @@ int executeCommand(char *cmd) {
     exitStatus = (WIFEXITED(status)) ? (WEXITSTATUS(status)) : 1;
     if (*stdinStatus) {
         dup2(stdinStatus[1], STDIN_FILENO);
+        close(stdinStatus[1]);
     }
     if (*stdoutStatus) {
         dup2(stdoutStatus[1], STDOUT_FILENO);
+        close(stdoutStatus[1]);
     }
     free(stdinStatus);
     free(stdoutStatus);
@@ -424,6 +426,8 @@ int processPipeCommands(char *cmd, char *orChr) {
         int exitStatus = executeCommand(temp->str);
         dup2(terminal_stdout, STDOUT_FILENO);
         dup2(terminal_stdin, STDIN_FILENO);
+        close(terminal_stdout);
+        close(terminal_stdin);
         free(tempCmd);
         StringLinkedList_free(tokens);
         return exitStatus;
