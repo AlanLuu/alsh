@@ -23,21 +23,46 @@ void StringLinkedList_free(StringLinkedList* list) {
     free(list);
 }
 
-void StringLinkedList_append(StringLinkedList *list, char *str, bool strMustBeFreed) {
-    if (list->head == NULL) {
-        list->head = malloc(sizeof(StringNode));
-        list->head->str = str;
-        list->head->strMustBeFreed = strMustBeFreed;
-        list->head->next = NULL;
-        list->tail = list->head;
-    } else {
-        list->tail->next = malloc(sizeof(StringNode));
+void StringLinkedList_addAt(StringLinkedList *list, int index, char *str, bool strMustBeFreed) {
+    if (index < 0 || index > list->size) {
+        return;
+    }
+    if (index == 0) {
+        StringNode *newNode = malloc(sizeof(StringNode));
+        newNode->str = str;
+        newNode->strMustBeFreed = strMustBeFreed;
+        newNode->next = list->head;
+        list->head = newNode;
+        if (list->tail == NULL) {
+            list->tail = list->head;
+        }
+        list->size++;
+    } else if (index == list->size) {
+        StringNode *newNode = malloc(sizeof(StringNode));
+        list->tail->next = newNode;
         list->tail->next->str = str;
         list->tail->next->strMustBeFreed = strMustBeFreed;
         list->tail->next->next = NULL;
         list->tail = list->tail->next;
+        list->size++;
+    } else {
+        int i = 0;
+        for (StringNode *temp = list->head; temp != NULL; temp = temp->next) {
+            if (i++ == index - 1) {
+                StringNode *newNode = malloc(sizeof(StringNode));
+                newNode->str = str;
+                newNode->strMustBeFreed = strMustBeFreed;
+                newNode->next = temp->next;
+                temp->next = newNode;
+                list->size++;
+                break;
+            }
+        }
     }
-    list->size++;
+}
+
+void StringLinkedList_append(StringLinkedList *list, char *str, bool strMustBeFreed) {
+    StringLinkedList_addAt(list, list->size, str, strMustBeFreed);
 }
 
 char* StringLinkedList_get(StringLinkedList *list, int index) {
@@ -72,15 +97,7 @@ bool StringLinkedList_contains(StringLinkedList *list, char *str) {
 }
 
 void StringLinkedList_prepend(StringLinkedList *list, char *str, bool strMustBeFreed) {
-    StringNode *newHead = malloc(sizeof(StringNode));
-    newHead->str = str;
-    newHead->strMustBeFreed = strMustBeFreed;
-    newHead->next = list->head;
-    list->head = newHead;
-    if (list->tail == NULL) {
-        list->tail = list->head;
-    }
-    list->size++;
+    StringLinkedList_addAt(list, 0, str, strMustBeFreed);
 }
 
 char* StringLinkedList_removeIndex(StringLinkedList *list, int index) {
@@ -88,17 +105,16 @@ char* StringLinkedList_removeIndex(StringLinkedList *list, int index) {
         return NULL;
     }
     char *str = NULL;
+    StringNode *temp = list->head;
     if (index == 0) {
-        StringNode *temp = list->head;
         list->head = list->head->next;
         str = temp->str;
         free(temp);
         list->size--;
     } else {
-        StringNode *temp = list->head;
         StringNode *prev = NULL;
         int i = 0;
-        while (temp != NULL) {
+        for (; temp != NULL; temp = temp->next) {
             if (i++ == index) {
                 if (temp->next == NULL) {
                     list->tail = prev;
@@ -110,19 +126,18 @@ char* StringLinkedList_removeIndex(StringLinkedList *list, int index) {
                 break;
             }
             prev = temp;
-            temp = temp->next;
         }
     }
     return str;
 }
 
 void StringLinkedList_removeValue(StringLinkedList *list, char *str) {
+    if (list->head == NULL) return;
     if (strcmp(list->head->str, str) == 0) {
         (void) StringLinkedList_removeIndex(list, 0);
     } else {
-        StringNode *temp = list->head;
         StringNode *prev = NULL;
-        while (temp != NULL) {
+        for (StringNode *temp = list->head->next; temp != NULL; temp = temp->next) {
             if (strcmp(temp->str, str) == 0) {
                 if (temp->next == NULL) {
                     list->tail = prev;
@@ -133,7 +148,6 @@ void StringLinkedList_removeValue(StringLinkedList *list, char *str) {
                 break;
             }
             prev = temp;
-            temp = temp->next;
         }
     }
 }

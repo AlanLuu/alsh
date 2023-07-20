@@ -18,6 +18,7 @@ typedef struct StringLinkedList {
 StringLinkedList* StringLinkedList_create();
 void StringLinkedList_free(StringLinkedList *list);
 
+void StringLinkedList_addAt(StringLinkedList *list, int index, char *str, bool strMustBeFreed);
 void StringLinkedList_append(StringLinkedList *list, char *str, bool strMustBeFreed);
 char* StringLinkedList_get(StringLinkedList *list, int index);
 int StringLinkedList_indexOf(StringLinkedList *list, char *str);
