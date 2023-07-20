@@ -41,6 +41,12 @@ void StringLinkedList_append(StringLinkedList *list, char *str, bool strMustBeFr
 }
 
 char* StringLinkedList_get(StringLinkedList *list, int index) {
+    if (index < 0 || index >= list->size) {
+        return NULL;
+    }
+    if (index == list->size - 1) {
+        return list->tail != NULL ? list->tail->str : NULL;
+    }
     int i = 0;
     for (StringNode *temp = list->head; temp != NULL; temp = temp->next) {
         if (i++ == index) {
@@ -78,6 +84,9 @@ void StringLinkedList_prepend(StringLinkedList *list, char *str, bool strMustBeF
 }
 
 char* StringLinkedList_removeIndex(StringLinkedList *list, int index) {
+    if (index < 0 || index >= list->size) {
+        return NULL;
+    }
     char *str = NULL;
     if (index == 0) {
         StringNode *temp = list->head;
@@ -138,7 +147,7 @@ int StringLinkedList_size(StringLinkedList *list) {
 }
 
 char** StringLinkedList_toArray(StringLinkedList *list) {
-    char **array = malloc(sizeof(char*) * list->size);
+    char **array = malloc(sizeof(char*) * (size_t) list->size);
     int i = 0;
     for (StringNode *temp = list->head; temp != NULL; temp = temp->next) {
         array[i++] = temp->str;

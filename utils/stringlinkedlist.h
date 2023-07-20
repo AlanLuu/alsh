@@ -12,7 +12,7 @@ typedef struct StringNode {
 typedef struct StringLinkedList {
     StringNode *head;
     StringNode *tail;
-    unsigned int size;
+    int size;
 } StringLinkedList;
 
 StringLinkedList* StringLinkedList_create();
