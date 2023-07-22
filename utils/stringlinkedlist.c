@@ -1,9 +1,11 @@
 #include "stringlinkedlist.h"
+
+#include "ealloc.h"
 #include <stdlib.h>
 #include <string.h>
 
 StringLinkedList* StringLinkedList_create() {
-    StringLinkedList *list = malloc(sizeof(StringNode));
+    StringLinkedList *list = emalloc(sizeof(StringNode));
     list->head = NULL;
     list->tail = NULL;
     list->size = 0;
@@ -28,7 +30,7 @@ void StringLinkedList_addAt(StringLinkedList *list, int index, char *str, bool s
         return;
     }
     if (index == 0) {
-        StringNode *newNode = malloc(sizeof(StringNode));
+        StringNode *newNode = emalloc(sizeof(StringNode));
         newNode->str = str;
         newNode->strMustBeFreed = strMustBeFreed;
         newNode->next = list->head;
@@ -38,7 +40,7 @@ void StringLinkedList_addAt(StringLinkedList *list, int index, char *str, bool s
         }
         list->size++;
     } else if (index == list->size) {
-        StringNode *newNode = malloc(sizeof(StringNode));
+        StringNode *newNode = emalloc(sizeof(StringNode));
         list->tail->next = newNode;
         list->tail->next->str = str;
         list->tail->next->strMustBeFreed = strMustBeFreed;
@@ -49,7 +51,7 @@ void StringLinkedList_addAt(StringLinkedList *list, int index, char *str, bool s
         int i = 0;
         for (StringNode *temp = list->head; temp != NULL; temp = temp->next) {
             if (i++ == index - 1) {
-                StringNode *newNode = malloc(sizeof(StringNode));
+                StringNode *newNode = emalloc(sizeof(StringNode));
                 newNode->str = str;
                 newNode->strMustBeFreed = strMustBeFreed;
                 newNode->next = temp->next;
@@ -93,7 +95,7 @@ int StringLinkedList_indexOf(StringLinkedList *list, char *str) {
 }
 
 bool StringLinkedList_contains(StringLinkedList *list, char *str) {
-    return StringLinkedList_indexOf(list, str) != -1;
+    return StringLinkedList_indexOf(list, str) >= 0;
 }
 
 void StringLinkedList_prepend(StringLinkedList *list, char *str, bool strMustBeFreed) {
@@ -161,7 +163,7 @@ int StringLinkedList_size(StringLinkedList *list) {
 }
 
 char** StringLinkedList_toArray(StringLinkedList *list) {
-    char **array = malloc(sizeof(char*) * (size_t) list->size);
+    char **array = emalloc(sizeof(char*) * (size_t) list->size);
     int i = 0;
     for (StringNode *temp = list->head; temp != NULL; temp = temp->next) {
         array[i++] = temp->str;

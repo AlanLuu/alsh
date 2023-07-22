@@ -9,6 +9,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include "utils/ealloc.h"
 #include "utils/stringlinkedlist.h"
 
 #define COMMAND_BUFFER_SIZE 4096
@@ -144,11 +145,11 @@ int* handleRedirectStdout(char *cmd) {
 
         if (!*fileName) {
             fprintf(stderr, "%s: %s: Missing file name\n", SHELL_NAME, *fopenMode == 'a' ? ">>" : ">");
-            status = malloc(sizeof(int));
+            status = emalloc(sizeof(int));
             *status = -1;
         } else {
             int oldStdout = dup(STDOUT_FILENO);
-            status = malloc(sizeof(int) * 2);
+            status = emalloc(sizeof(int) * 2);
             *status = 1;
             status[1] = oldStdout;
             
@@ -157,7 +158,7 @@ int* handleRedirectStdout(char *cmd) {
             fclose(fp);
         }
     } else {
-        status = calloc(1, sizeof(int));
+        status = ecalloc(1, sizeof(int));
     }
     return status;
 }
@@ -187,20 +188,20 @@ int* handleRedirectStdin(char *cmd) {
         FILE *fp = fopen(fileName, "r");
         if (fp == NULL) {
             fprintf(stderr, "%s: %s: No such file or directory\n", SHELL_NAME, fileName);
-            status = malloc(sizeof(int));
+            status = emalloc(sizeof(int));
             *status = -1;
         } else {
             int oldStdin = dup(STDIN_FILENO);
             dup2(fileno(fp), STDIN_FILENO);
             fclose(fp);
-            status = malloc(sizeof(int) * 2);
+            status = emalloc(sizeof(int) * 2);
             *status = 1;
             status[1] = oldStdin;
         }
 
         free(tempCmd);
     } else {
-        status = calloc(1, sizeof(int));
+        status = ecalloc(1, sizeof(int));
     }
     return status;
 }
@@ -210,7 +211,7 @@ int executeCommand(char *cmd) {
         return 1;
     }
     int exitStatus = 0;
-    char *tempCmd = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
+    char *tempCmd = emalloc(sizeof(char) * COMMAND_BUFFER_SIZE);
     char *cmdPtr = cmd;
     char *tempCmdPtr = tempCmd;
     int cmdIndex = 0;
@@ -530,7 +531,7 @@ void addCommandToHistory(char *cmd) {
 
 int processHistoryExclamations(char *cmd) {
     if (strchr(cmd, '!') != NULL) {
-        char *tempCmd = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
+        char *tempCmd = emalloc(sizeof(char) * COMMAND_BUFFER_SIZE);
         char *cmdCounter = cmd;
         char *tempCmdCounter = tempCmd;
 
@@ -644,7 +645,7 @@ void printPrompt(void) {
 }
 
 int main(int argc, char *argv[]) {
-    char *cmd = malloc(sizeof(char) * COMMAND_BUFFER_SIZE);
+    char *cmd = emalloc(sizeof(char) * COMMAND_BUFFER_SIZE);
     pwd = getpwuid(getuid());
     if (argc > 1) {
         FILE *fp = fopen(argv[1], "r");
