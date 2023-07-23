@@ -422,7 +422,7 @@ int processPipeCommands(char *cmd, char *orChr) {
             dup2(fd[0], STDIN_FILENO);
             close(fd[1]);
         }
-        int exitStatus = executeCommand(temp->str);
+        int exitStatus = temp != NULL ? executeCommand(temp->str) : 1;
         dup2(terminal_stdout, STDOUT_FILENO);
         dup2(terminal_stdin, STDIN_FILENO);
         close(terminal_stdout);
