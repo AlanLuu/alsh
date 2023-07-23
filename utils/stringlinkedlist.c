@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-StringLinkedList* StringLinkedList_create() {
+StringLinkedList* StringLinkedList_create(void) {
     StringLinkedList *list = emalloc(sizeof(StringNode));
     list->head = NULL;
     list->tail = NULL;

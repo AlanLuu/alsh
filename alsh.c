@@ -9,6 +9,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include "utils/charlist.h"
 #include "utils/ealloc.h"
 #include "utils/stringlinkedlist.h"
 
@@ -211,9 +212,8 @@ int executeCommand(char *cmd) {
         return 1;
     }
     int exitStatus = 0;
-    char *tempCmd = emalloc(sizeof(char) * COMMAND_BUFFER_SIZE);
+    CharList *tempCmd = CharList_create();
     char *cmdPtr = cmd;
-    char *tempCmdPtr = tempCmd;
     int cmdIndex = 0;
     while (*cmdPtr) {
         switch (*cmdPtr) {
@@ -225,27 +225,26 @@ int executeCommand(char *cmd) {
                 //Avoid ub if cmdPtr is at the beginning of the string
                 if (cmdIndex > 0 && (noSpaceOnLeft || noSpaceOnRight)) {
                     if (noSpaceOnLeft) {
-                        *tempCmdPtr++ = ' ';
+                        CharList_add(tempCmd, ' ');
                     }
-                    *tempCmdPtr++ = *cmdPtr++;
+                    CharList_add(tempCmd, *cmdPtr++);
                     if (*(cmdPtr - 1) == '>' && *cmdPtr == '>') {
-                        *tempCmdPtr++ = *cmdPtr++;
+                        CharList_add(tempCmd, *cmdPtr++);
                     }
-                    *tempCmdPtr++ = ' ';
+                    CharList_add(tempCmd, ' ');
                 } else {
-                    *tempCmdPtr++ = *cmdPtr++;
+                    CharList_add(tempCmd, *cmdPtr++);
                 }
                 break;
             }
             default:
-                *tempCmdPtr++ = *cmdPtr++;
+                CharList_add(tempCmd, *cmdPtr++);
                 break;
         }
         cmdIndex++;
     }
-    *tempCmdPtr = '\0';
-    
-    StringLinkedList *tokens = split(tempCmd, " ");
+
+    StringLinkedList *tokens = split(tempCmd->data, " ");
 
     //Add --color=auto to ls command
     if (strcmp(tokens->head->str, "ls") == 0) {
@@ -293,7 +292,7 @@ int executeCommand(char *cmd) {
             fprintf(stderr, "%s: cd: %s: %s\n", SHELL_NAME, arg, err);
             exitStatus = 1;
         }
-        free(tempCmd);
+        CharList_free(tempCmd);
         StringLinkedList_free(tokens);
         return exitStatus;
     }
@@ -338,7 +337,7 @@ int executeCommand(char *cmd) {
                 printf("    %d. %s\n", i + 1, history.elements[i]);
             }
         }
-        free(tempCmd);
+        CharList_free(tempCmd);
         StringLinkedList_free(tokens);
         return exitStatus;
     }
@@ -346,7 +345,7 @@ int executeCommand(char *cmd) {
     int *stdinStatus = handleRedirectStdin(cmd);
     if (*stdinStatus == -1) {
         free(stdinStatus);
-        free(tempCmd);
+        CharList_free(tempCmd);
         StringLinkedList_free(tokens);
         return 1;
     }
@@ -354,7 +353,7 @@ int executeCommand(char *cmd) {
     if (*stdoutStatus == -1) {
         free(stdinStatus);
         free(stdoutStatus);
-        free(tempCmd);
+        CharList_free(tempCmd);
         StringLinkedList_free(tokens);
         return 1;
     }
@@ -391,7 +390,7 @@ int executeCommand(char *cmd) {
     }
     free(stdinStatus);
     free(stdoutStatus);
-    free(tempCmd);
+    CharList_free(tempCmd);
     StringLinkedList_free(tokens);
     return exitStatus;
 }
