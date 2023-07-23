@@ -6,7 +6,7 @@
 
 #define DEFAULT_CAPACITY 10
 
-void resize(CharList *list) {
+void CharList_resize(CharList *list) {
     int oldCapacity = list->capacity;
     list->capacity *= 2;
     list->data = erealloc(list->data, sizeof(char) * (size_t) list->capacity);
@@ -38,7 +38,7 @@ void CharList_addAt(CharList *list, int index, char value) {
         return;
     }
     if (list->size == list->capacity) {
-        resize(list);
+        CharList_resize(list);
     }
     for (int i = list->size; i > index; i--) {
         list->data[i] = list->data[i - 1];
