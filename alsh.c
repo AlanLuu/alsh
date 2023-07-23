@@ -55,6 +55,7 @@ static bool sigintReceived = false;
 void sigintHandler(int sig) {
     (void) sig;
     sigintReceived = true;
+    (void) wait(NULL);
 }
 
 /**
