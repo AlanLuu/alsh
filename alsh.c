@@ -530,21 +530,19 @@ void addCommandToHistory(char *cmd) {
 
 int processHistoryExclamations(char *cmd) {
     if (strchr(cmd, '!') != NULL) {
-        char *tempCmd = emalloc(sizeof(char) * COMMAND_BUFFER_SIZE);
+        CharList *tempCmd = CharList_create();
         char *cmdCounter = cmd;
-        char *tempCmdCounter = tempCmd;
-
+        
         while (*cmdCounter) {
             if (*cmdCounter == '!') {
                 if (!*(cmdCounter + 1)) {
                     if (*cmd == '!') { //Only ! in command
-                        free(tempCmd);
+                        CharList_free(tempCmd);
                         return 0;
                     } else { //Single ! at the end of command
-                        *tempCmdCounter++ = *cmdCounter++;
-                        *tempCmdCounter = '\0';
-                        strcpy(cmd, tempCmd);
-                        free(tempCmd);
+                        CharList_add(tempCmd, *cmdCounter++);
+                        strcpy(cmd, tempCmd->data);
+                        CharList_free(tempCmd);
                         return -1;
                     }
                 }
@@ -559,15 +557,13 @@ int processHistoryExclamations(char *cmd) {
                 if (*cmdCounter == '!') { //!! command
                     if (history.count == 0) {
                         fprintf(stderr, "%s: !!: event not found\n", SHELL_NAME);
-                        free(tempCmd);
+                        CharList_free(tempCmd);
                         return 0;
                     }
 
                     char *historyCmd = history.elements[history.count - 1];
                     while (*historyCmd) {
-                        *tempCmdCounter = *historyCmd;
-                        tempCmdCounter++;
-                        historyCmd++;
+                        CharList_add(tempCmd, *historyCmd++);
                     }
                     cmdCounter++;
                 } else if (isdigit(*cmdCounter)) { //!<number> command
@@ -581,13 +577,13 @@ int processHistoryExclamations(char *cmd) {
                         historyIndex = history.count - historyNumber;
                         if (historyIndex < 0) {
                             fprintf(stderr, "%s: !-%d: event not found\n", SHELL_NAME, historyNumber);
-                            free(tempCmd);
+                            CharList_free(tempCmd);
                             return 0;
                         }
                     } else {
                         if (historyNumber <= 0 || historyNumber > history.count) {
                             fprintf(stderr, "%s: !%d: event not found\n", SHELL_NAME, historyNumber);
-                            free(tempCmd);
+                            CharList_free(tempCmd);
                             return 0;
                         }
                         historyIndex = historyNumber - 1;
@@ -595,22 +591,21 @@ int processHistoryExclamations(char *cmd) {
 
                     char *historyCmd = history.elements[historyIndex];
                     while (*historyCmd) {
-                        *tempCmdCounter++ = *historyCmd++;
+                        CharList_add(tempCmd, *historyCmd++);
                     }
                 } else {
                     cmdCounter -= isNegative ? 2 : 1;
                     fprintf(stderr, "%s: %s: event not found\n", SHELL_NAME, cmdCounter);
-                    free(tempCmd);
+                    CharList_free(tempCmd);
                     return 0;
                 }
             } else {
-                *tempCmdCounter++ = *cmdCounter++;
+                CharList_add(tempCmd, *cmdCounter++);
             }
         }
 
-        *tempCmdCounter = '\0';
-        strcpy(cmd, tempCmd);
-        free(tempCmd);
+        strcpy(cmd, tempCmd->data);
+        CharList_free(tempCmd);
         return 1;
     }
 
