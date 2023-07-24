@@ -19,8 +19,8 @@
 #define EXIT_COMMAND "exit"
 #define HISTORY_COMMAND "history"
 #define HISTORY_FILE_NAME ".alsh_history"
-#define HISTORY_MAX_ELEMENTS 100
 #define SHELL_NAME "alsh"
+#define STARTING_HISTORY_CAPACITY 25
 #define USERNAME_MAX_LENGTH 32
 
 static char cwd[CWD_BUFFER_SIZE]; //Current working directory
@@ -36,19 +36,22 @@ bool isInHomeDirectory(void) {
     }
     return true;
 }
-
 bool isRootUser(void) {
     return pwd->pw_uid == 0;
 }
 
-struct {
-    char *elements[HISTORY_MAX_ELEMENTS];
+typedef struct History {
+    char **elements;
     int count;
-} history;
-void freeHistoryElements(void) {
+    int capacity;
+} History;
+
+History history;
+void clearHistoryElements(void) {
     for (int i = 0; i < history.count; i++) {
         free(history.elements[i]);
     }
+    history.count = 0;
 }
 
 static bool sigintReceived = false;
@@ -306,8 +309,7 @@ int executeCommand(char *cmd) {
             char flagChr = flag[1];
             switch (flagChr) {
                 case 'c':
-                    freeHistoryElements();
-                    history.count = 0;
+                    clearHistoryElements();
                     break;
                 case 'w': {
                     //Total of 52 characters for /home/<username>/.alsh_history
@@ -515,18 +517,11 @@ void addCommandToHistory(char *cmd) {
         }
     }
 
-    if (history.count == HISTORY_MAX_ELEMENTS) {
-        free(history.elements[0]);
-
-        //Shift all elements to the left
-        for (int i = 0; i < HISTORY_MAX_ELEMENTS - 1; i++) {
-            history.elements[i] = history.elements[i + 1];
-        }
-        history.elements[HISTORY_MAX_ELEMENTS - 1] = strdup(cmd);
-    } else {
-        history.elements[history.count] = strdup(cmd);
-        history.count++;
+    if (history.count == history.capacity) {
+        history.capacity *= 2;
+        history.elements = erealloc(history.elements, sizeof(char*) * (size_t) history.capacity);
     }
+    history.elements[history.count++] = strdup(cmd);
 }
 
 int processHistoryExclamations(char *cmd) {
@@ -657,6 +652,9 @@ int main(int argc, char *argv[]) {
         }
         fclose(fp);
     } else {
+        history.capacity = STARTING_HISTORY_CAPACITY;
+        history.elements = emalloc(sizeof(char*) * (size_t) history.capacity);
+
         //Total of 52 characters for /home/<username>/.alsh_history
         //Maximum of 32 characters for <username>
         //20 characters for the rest of the path
@@ -738,7 +736,8 @@ int main(int argc, char *argv[]) {
             }
         } while (sigintReceived);
 
-        freeHistoryElements();
+        clearHistoryElements();
+        free(history.elements);
     }
     free(cmd);
     return 0;
