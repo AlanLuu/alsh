@@ -203,6 +203,7 @@ int executeCommand(char *cmd) {
     if (cmd == NULL || !*cmd) {
         return 1;
     }
+    
     int exitStatus = 0;
     CharList *tempCmd = CharList_create();
     char *cmdPtr = cmd;
@@ -237,15 +238,27 @@ int executeCommand(char *cmd) {
     }
 
     StringLinkedList *tokens = split(tempCmd->data, " ");
+    StringNode *head = tokens->head;
+
+    if (strcmp(head->str, "true") == 0) {
+        CharList_free(tempCmd);
+        StringLinkedList_free(tokens);
+        return 0;
+    }
+    if (strcmp(head->str, "false") == 0) {
+        CharList_free(tempCmd);
+        StringLinkedList_free(tokens);
+        return 1;
+    }
 
     //Add --color=auto to ls command
-    if (strcmp(tokens->head->str, "ls") == 0) {
+    if (strcmp(head->str, "ls") == 0) {
         StringLinkedList_append(tokens, "--color=auto", false);
     }
 
     //cd command
-    if (strcmp(tokens->head->str, "cd") == 0) {
-        StringNode *argNode = tokens->head->next;
+    if (strcmp(head->str, "cd") == 0) {
+        StringNode *argNode = head->next;
         char *arg = argNode != NULL ? argNode->str : NULL;
         if (arg == NULL) { //No argument, change to home directory
             if (chdir(pwd->pw_dir) != 0) {
@@ -290,8 +303,8 @@ int executeCommand(char *cmd) {
     }
 
     //history command
-    if (strcmp(tokens->head->str, HISTORY_COMMAND) == 0) {
-        StringNode *argNode = tokens->head->next;
+    if (strcmp(head->str, HISTORY_COMMAND) == 0) {
+        StringNode *argNode = head->next;
         char *flag = argNode != NULL ? argNode->str : NULL;
         if (flag != NULL) {
             char flagChr = flag[1];
@@ -362,8 +375,8 @@ int executeCommand(char *cmd) {
         }
         StringLinkedList_append(tokens, NULL, false);
         char **tokensArr = StringLinkedList_toArray(tokens);
-        execvp(tokens->head->str, tokensArr);
-        fprintf(stderr, "%s: command not found\n", tokens->head->str);
+        execvp(head->str, tokensArr);
+        fprintf(stderr, "%s: command not found\n", head->str);
         exit(1);
     }
 
