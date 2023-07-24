@@ -72,18 +72,6 @@ void removeNewlineIfExists(char *str) {
 }
 
 /**
- * Removes the first occurrence of str from tokens if it exists
-*/
-void removeStrFromArrIfExists(char **tokens, char *str) {
-    for (int i = 0; tokens[i] != NULL; i++) {
-        if (strcmp(tokens[i], str) == 0) {
-            tokens[i] = NULL;
-            break;
-        }
-    }
-}
-
-/**
  * Splits a string from the first occurrence of delim and returns a StringLinkedList
  * pointer that refers to the first node of the StringLinkedList
  * Remember to free() the returned StringLinkedList
