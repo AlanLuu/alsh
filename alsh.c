@@ -203,6 +203,18 @@ int executeCommand(char *cmd) {
     if (cmd == NULL || !*cmd) {
         return 1;
     }
+
+    int *stdinStatus = handleRedirectStdin(cmd);
+    if (*stdinStatus == -1) {
+        free(stdinStatus);
+        return 1;
+    }
+    int *stdoutStatus = handleRedirectStdout(cmd);
+    if (*stdoutStatus == -1) {
+        free(stdinStatus);
+        free(stdoutStatus);
+        return 1;
+    }
     
     int exitStatus = 0;
     CharList *tempCmd = CharList_create();
@@ -238,26 +250,28 @@ int executeCommand(char *cmd) {
     }
 
     StringLinkedList *tokens = split(tempCmd->data, " ");
+    char *strsToRemove[] = {"<", ">", ">>"};
+    for (size_t i = 0; i < sizeof(strsToRemove) / sizeof(*strsToRemove); i++) {
+        char *strToRemove = strsToRemove[i];
+        int strToRemoveIndex = StringLinkedList_indexOf(tokens, strToRemove);
+        if (strToRemoveIndex != -1) {
+            (void) StringLinkedList_removeIndex(tokens, strToRemoveIndex);
+            (void) StringLinkedList_removeIndex(tokens, strToRemoveIndex);
+        }
+    }
+
     StringNode *head = tokens->head;
-
-    if (strcmp(head->str, "true") == 0) {
-        CharList_free(tempCmd);
-        StringLinkedList_free(tokens);
-        return 0;
-    }
-    if (strcmp(head->str, "false") == 0) {
-        CharList_free(tempCmd);
-        StringLinkedList_free(tokens);
-        return 1;
-    }
-
-    //Add --color=auto to ls command
-    if (strcmp(head->str, "ls") == 0) {
+    bool isBuiltInCommand = false;
+    if (strcmp(head->str, "ls") == 0) { //Add --color=auto to ls command
         StringLinkedList_append(tokens, "--color=auto", false);
-    }
-
-    //cd command
-    if (strcmp(head->str, "cd") == 0) {
+    } else if (strcmp(head->str, "true") == 0) {
+        isBuiltInCommand = true;
+        exitStatus = 0;
+    } else if (strcmp(head->str, "false") == 0) {
+        isBuiltInCommand = true;
+        exitStatus = 1;
+    } else if (strcmp(head->str, "cd") == 0) {
+        isBuiltInCommand = true;
         StringNode *argNode = head->next;
         char *arg = argNode != NULL ? argNode->str : NULL;
         if (arg == NULL) { //No argument, change to home directory
@@ -297,13 +311,8 @@ int executeCommand(char *cmd) {
             fprintf(stderr, "%s: cd: %s: %s\n", SHELL_NAME, arg, err);
             exitStatus = 1;
         }
-        CharList_free(tempCmd);
-        StringLinkedList_free(tokens);
-        return exitStatus;
-    }
-
-    //history command
-    if (strcmp(head->str, HISTORY_COMMAND) == 0) {
+    } else if (strcmp(head->str, HISTORY_COMMAND) == 0) {
+        isBuiltInCommand = true;
         StringNode *argNode = head->next;
         char *flag = argNode != NULL ? argNode->str : NULL;
         if (flag != NULL) {
@@ -341,49 +350,22 @@ int executeCommand(char *cmd) {
                 printf("    %d. %s\n", i + 1, history.elements[i]);
             }
         }
-        CharList_free(tempCmd);
-        StringLinkedList_free(tokens);
-        return exitStatus;
     }
 
-    int *stdinStatus = handleRedirectStdin(cmd);
-    if (*stdinStatus == -1) {
-        free(stdinStatus);
-        CharList_free(tempCmd);
-        StringLinkedList_free(tokens);
-        return 1;
-    }
-    int *stdoutStatus = handleRedirectStdout(cmd);
-    if (*stdoutStatus == -1) {
-        free(stdinStatus);
-        free(stdoutStatus);
-        CharList_free(tempCmd);
-        StringLinkedList_free(tokens);
-        return 1;
-    }
-
-    pid_t cid = fork();
-    if (cid == 0) {
-        char *strsToRemove[] = {"<", ">", ">>"};
-        for (size_t i = 0; i < sizeof(strsToRemove) / sizeof(*strsToRemove); i++) {
-            char *strToRemove = strsToRemove[i];
-            int strToRemoveIndex = StringLinkedList_indexOf(tokens, strToRemove);
-            if (strToRemoveIndex != -1) {
-                (void) StringLinkedList_removeIndex(tokens, strToRemoveIndex);
-                (void) StringLinkedList_removeIndex(tokens, strToRemoveIndex);
-            }
+    if (!isBuiltInCommand) {
+        pid_t cid = fork();
+        if (cid == 0) {
+            StringLinkedList_append(tokens, NULL, false);
+            char **tokensArr = StringLinkedList_toArray(tokens);
+            execvp(head->str, tokensArr);
+            fprintf(stderr, "%s: command not found\n", head->str);
+            exit(1);
         }
-        StringLinkedList_append(tokens, NULL, false);
-        char **tokensArr = StringLinkedList_toArray(tokens);
-        execvp(head->str, tokensArr);
-        fprintf(stderr, "%s: command not found\n", head->str);
-        exit(1);
+        int status;
+        while (wait(&status) > 0);
+        exitStatus = (WIFEXITED(status)) ? (WEXITSTATUS(status)) : 1;
     }
-
-    int status;
-    while (wait(&status) > 0);
-
-    exitStatus = (WIFEXITED(status)) ? (WEXITSTATUS(status)) : 1;
+    
     if (*stdinStatus) {
         dup2(stdinStatus[1], STDIN_FILENO);
         close(stdinStatus[1]);
