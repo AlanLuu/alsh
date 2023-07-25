@@ -51,6 +51,12 @@ void CharList_add(CharList *list, char value) {
     CharList_addAt(list, list->size, value);
 }
 
+void CharList_addStr(CharList *list, char *str) {
+    while (*str) {
+        CharList_add(list, *str++);
+    }
+}
+
 void CharList_clear(CharList *list) {
     for (int i = 0; i < list->size; i++) {
         list->data[i] = 0;
@@ -97,4 +103,11 @@ void CharList_removeValue(CharList *list, char value) {
     if (index != -1) {
         CharList_removeIndex(list, index);
     }
+}
+
+char* CharList_toStr(CharList *list) {
+    char *arr = emalloc(sizeof(char) * (size_t) (list->size + 1));
+    memcpy(arr, list->data, (size_t) list->size);
+    arr[list->size] = 0;
+    return arr;
 }

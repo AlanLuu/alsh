@@ -25,6 +25,7 @@
 
 static char cwd[CWD_BUFFER_SIZE]; //Current working directory
 static struct passwd *pwd; //User info
+static char *redirectionStrs[] = {"<", ">", ">>"};
 
 bool isInHomeDirectory(void) {
     char *cwdPtr = cwd;
@@ -79,9 +80,69 @@ void removeNewlineIfExists(char *str) {
 StringLinkedList* split(char *str, char *delim) {
     StringLinkedList *tokens = StringLinkedList_create();
     char *token = strtok(str, delim);
+    bool onlySpaceInDelim = *delim == ' ' && !delim[1];
     while (token != NULL) {
-        StringLinkedList_append(tokens, token, false);
-        token = strtok(NULL, delim);
+        char *quoteChrPos = NULL;
+        if (onlySpaceInDelim && (quoteChrPos = strchr(token, '"')) != NULL) {
+            CharList *tempCharList = CharList_create();
+            bool openQuote = true;
+            bool isfirstIteration = true;
+            do {
+                quoteChrPos = quoteChrPos != NULL ? quoteChrPos : strchr(token, '"');
+                if (quoteChrPos != NULL) {
+                    char *quoteChrNext = quoteChrPos + 1;
+                    if (!isfirstIteration || strchr(quoteChrNext, '"') != NULL) {
+                        openQuote = false;
+                        if (!isfirstIteration) {
+                            char *tempToken = token - 1;
+                            while (*tempToken == '\0' || *tempToken == ' ') {
+                                CharList_add(tempCharList, ' ');
+                                tempToken--;
+                            }
+                            quoteChrNext = token;
+                        }
+                        while (*quoteChrNext != '"') {
+                            CharList_add(tempCharList, *quoteChrNext++);
+                        }
+                    } else {
+                        CharList_addStr(tempCharList, quoteChrNext);
+                    }
+                } else {
+                    if (!isfirstIteration) {
+                        char *tempToken = token - 1;
+                        while (*tempToken == '\0' || *tempToken == ' ') {
+                            CharList_add(tempCharList, ' ');
+                            tempToken--;
+                        }
+                    }
+                    CharList_addStr(tempCharList, token);
+                }
+                quoteChrPos = NULL;
+                token = strtok(NULL, delim);
+                isfirstIteration = false;
+            } while (openQuote && token != NULL);
+
+            if (openQuote) {
+                bool containsStr = false;
+                for (size_t i = 0; i < sizeof(redirectionStrs) / sizeof(*redirectionStrs); i++) {
+                    if (StringLinkedList_contains(tokens, redirectionStrs[i])) {
+                        containsStr = true;
+                        break;
+                    }
+                }
+                if (!containsStr) {
+                    fprintf(stderr, "%s: Missing closing quote\n", SHELL_NAME);
+                }
+                StringLinkedList_free(tokens);
+                return NULL;
+            }
+            char *charListCopy = CharList_toStr(tempCharList);
+            StringLinkedList_append(tokens, charListCopy, true);
+            CharList_free(tempCharList);
+        } else {
+            StringLinkedList_append(tokens, token, false);
+            token = strtok(NULL, delim);
+        }
     }
     return tokens;
 }
@@ -250,9 +311,22 @@ int executeCommand(char *cmd) {
     }
 
     StringLinkedList *tokens = split(tempCmd->data, " ");
-    char *strsToRemove[] = {"<", ">", ">>"};
-    for (size_t i = 0; i < sizeof(strsToRemove) / sizeof(*strsToRemove); i++) {
-        char *strToRemove = strsToRemove[i];
+    if (tokens == NULL) {
+        if (*stdinStatus) {
+            dup2(stdinStatus[1], STDIN_FILENO);
+            close(stdinStatus[1]);
+        }
+        if (*stdoutStatus) {
+            dup2(stdoutStatus[1], STDOUT_FILENO);
+            close(stdoutStatus[1]);
+        }
+        free(stdinStatus);
+        free(stdoutStatus);
+        CharList_free(tempCmd);
+        return 1;
+    }
+    for (size_t i = 0; i < sizeof(redirectionStrs) / sizeof(*redirectionStrs); i++) {
+        char *strToRemove = redirectionStrs[i];
         int strToRemoveIndex = StringLinkedList_indexOf(tokens, strToRemove);
         if (strToRemoveIndex != -1) {
             (void) StringLinkedList_removeIndex(tokens, strToRemoveIndex);
