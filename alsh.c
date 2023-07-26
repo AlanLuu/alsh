@@ -84,30 +84,56 @@ StringLinkedList* split(char *str, char *delim) {
     while (token != NULL) {
         char *quoteChrPos = NULL;
         if (onlySpaceInDelim && (quoteChrPos = strchr(token, '"')) != NULL) {
+            //Found an opening quote character
             CharList *tempCharList = CharList_create();
             bool openQuote = true;
             bool isfirstIteration = true;
+
+            //Loop until closing quote character is found or no more tokens
             do {
                 quoteChrPos = quoteChrPos != NULL ? quoteChrPos : strchr(token, '"');
+
+                //First iteration: condition is always true
+                //Subsequent iterations: only true if a closing quote character is found
                 if (quoteChrPos != NULL) {
                     char *quoteChrNext = quoteChrPos + 1;
-                    if (!isfirstIteration || strchr(quoteChrNext, '"') != NULL) {
+                    bool foundClosingQuote = strchr(quoteChrNext, '"') != NULL;
+
+                    //First iteration, only true if quoted part does not contain spaces
+                    //Subsequent iterations, always true
+                    if (!isfirstIteration || foundClosingQuote) {
                         openQuote = false;
                         if (!isfirstIteration) {
+                            //Quoted part contains spaces
+                            //Add necessary spaces
                             char *tempToken = token - 1;
                             while (*tempToken == '\0' || *tempToken == ' ') {
                                 CharList_add(tempCharList, ' ');
                                 tempToken--;
                             }
+
                             quoteChrNext = token;
-                        }
-                        while (*quoteChrNext != '"') {
-                            CharList_add(tempCharList, *quoteChrNext++);
+                            while (*quoteChrNext != '"') {
+                                CharList_add(tempCharList, *quoteChrNext++);
+                            }
+                        } else {
+                            //Quoted part does not contain spaces
+                            char *tempToken = token;
+                            while (*tempToken) {
+                                if (*tempToken != '"') {
+                                    CharList_add(tempCharList, *tempToken);
+                                }
+                                tempToken++;
+                            }
                         }
                     } else {
+                        //Did not find closing quote in first iteration token
+                        //Closing quote could be in next token
                         CharList_addStr(tempCharList, quoteChrNext);
                     }
                 } else {
+                    //Closing quote not found yet in next token
+                    //Add necessary spaces
                     if (!isfirstIteration) {
                         char *tempToken = token - 1;
                         while (*tempToken == '\0' || *tempToken == ' ') {
@@ -117,11 +143,13 @@ StringLinkedList* split(char *str, char *delim) {
                     }
                     CharList_addStr(tempCharList, token);
                 }
+
                 quoteChrPos = NULL;
                 token = strtok(NULL, delim);
                 isfirstIteration = false;
             } while (openQuote && token != NULL);
 
+            //Did not find closing quote character
             if (openQuote) {
                 bool containsStr = false;
                 for (size_t i = 0; i < sizeof(redirectionStrs) / sizeof(*redirectionStrs); i++) {
@@ -136,6 +164,8 @@ StringLinkedList* split(char *str, char *delim) {
                 StringLinkedList_free(tokens);
                 return NULL;
             }
+
+            //Add quoted section to the linked list as a single token
             char *charListCopy = CharList_toStr(tempCharList);
             StringLinkedList_append(tokens, charListCopy, true);
             CharList_free(tempCharList);
