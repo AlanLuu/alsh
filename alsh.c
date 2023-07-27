@@ -23,6 +23,12 @@
 #define STARTING_HISTORY_CAPACITY 25
 #define USERNAME_MAX_LENGTH 32
 
+#ifdef __linux__
+#define IS_LINUX true
+#else
+#define IS_LINUX false
+#endif
+
 static char cwd[CWD_BUFFER_SIZE]; //Current working directory
 static struct passwd *pwd; //User info
 static char *redirectionStrs[] = {"<", ">", ">>"};
@@ -384,7 +390,9 @@ int executeCommand(char *cmd, bool waitForCommand) {
         "grep"
     };
     if (strArrContains(colorAutoCmds, head->str, sizeof(colorAutoCmds) / sizeof(*colorAutoCmds))) {
-        StringLinkedList_append(tokens, "--color=auto", false);
+        if (IS_LINUX) {
+            StringLinkedList_append(tokens, "--color=auto", false);
+        }
     } else if (strcmp(head->str, "true") == 0) {
         isBuiltInCommand = true;
         exitStatus = 0;
