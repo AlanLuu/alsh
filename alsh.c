@@ -178,6 +178,19 @@ StringLinkedList* split(char *str, char *delim) {
 }
 
 /**
+ * Checks if a string array contains a particular string
+ * Length of the array must be passed in to this function
+*/
+bool strArrContains(char **arr, char *str, size_t arrLen) {
+    for (size_t i = 0; i < arrLen; i++) {
+        if (strcmp(str, arr[i]) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
  * Trims whitespace from the beginning and end of a string
  * If the string only contains whitespace, it will be trimmed to an empty string
  * Returns false if the string is empty, true otherwise
@@ -366,7 +379,11 @@ int executeCommand(char *cmd, bool waitForCommand) {
 
     StringNode *head = tokens->head;
     bool isBuiltInCommand = false;
-    if (strcmp(head->str, "ls") == 0) { //Add --color=auto to ls command
+    char *colorAutoCmds[] = {
+        "ls",
+        "grep"
+    };
+    if (strArrContains(colorAutoCmds, head->str, sizeof(colorAutoCmds) / sizeof(*colorAutoCmds))) {
         StringLinkedList_append(tokens, "--color=auto", false);
     } else if (strcmp(head->str, "true") == 0) {
         isBuiltInCommand = true;
