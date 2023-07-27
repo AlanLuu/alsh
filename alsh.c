@@ -458,17 +458,23 @@ int executeCommand(char *cmd, bool waitForCommand) {
 
     if (!isBuiltInCommand) {
         pid_t cid = fork();
-        if (cid == 0) {
-            StringLinkedList_append(tokens, NULL, false);
-            char **tokensArr = StringLinkedList_toArray(tokens);
-            execvp(head->str, tokensArr);
-            fprintf(stderr, "%s: command not found\n", head->str);
-            exit(1);
-        }
-        if (!waitForCommand) {
-            int status;
-            while (wait(&status) > 0);
-            exitStatus = (WIFEXITED(status)) ? (WEXITSTATUS(status)) : 1;
+        if (cid >= 0) {
+            if (cid == 0) {
+                StringLinkedList_append(tokens, NULL, false);
+                char **tokensArr = StringLinkedList_toArray(tokens);
+                execvp(head->str, tokensArr);
+                fprintf(stderr, "%s: command not found\n", head->str);
+                exit(1);
+            }
+            if (waitForCommand) {
+                int status;
+                while (wait(&status) > 0);
+                exitStatus = (WIFEXITED(status)) ? (WEXITSTATUS(status)) : 1;
+            }
+        } else {
+            //Should not happen
+            fprintf(stderr, "%s: Failed to spawn child process for command \"%s\"\n", SHELL_NAME, tempCmd->data);
+            exitStatus = 1;
         }
     }
     
@@ -495,6 +501,7 @@ int processPipeCommands(char *cmd, char *orChr) {
         int terminal_stdout = dup(STDOUT_FILENO);
         int fd[2];
         StringNode *temp;
+        bool pipeForkFailed = false;
         for (temp = tokens->head; temp != tokens->tail; temp = temp->next) {
             if (pipe(fd) != 0) {
                 //Should not happen
@@ -504,11 +511,17 @@ int processPipeCommands(char *cmd, char *orChr) {
                 return 1;
             }
             pid_t cid = fork();
+            if (cid < 0) {
+                //Should not happen
+                fprintf(stderr, "%s: Failed to spawn child process for command \"%s\" in pipe\n", SHELL_NAME, cmd);
+                pipeForkFailed = true;
+                break;
+            }
             if (cid == 0) {
                 close(fd[0]);
                 dup2(fd[1], STDOUT_FILENO);
                 close(fd[1]);
-                (void) executeCommand(temp->str, true);
+                (void) executeCommand(temp->str, false);
                 exit(0);
             }
             close(fd[1]);
@@ -518,7 +531,9 @@ int processPipeCommands(char *cmd, char *orChr) {
         }
         int exitStatus = 1;
         if (temp != NULL) {
-            exitStatus = executeCommand(temp->str, false);
+            if (!pipeForkFailed) {
+                exitStatus = executeCommand(temp->str, true);
+            }
             dup2(terminal_stdout, STDOUT_FILENO);
             dup2(terminal_stdin, STDIN_FILENO);
         }
@@ -528,7 +543,7 @@ int processPipeCommands(char *cmd, char *orChr) {
         StringLinkedList_free(tokens);
         return exitStatus;
     }
-    return executeCommand(cmd, false);
+    return executeCommand(cmd, true);
 }
 
 int processOrCommands(char *cmd) {
