@@ -290,7 +290,7 @@ int* handleRedirectStdin(char *cmd) {
     return status;
 }
 
-int executeCommand(char *cmd) {
+int executeCommand(char *cmd, bool waitForCommand) {
     if (cmd == NULL || !*cmd) {
         return 1;
     }
@@ -465,9 +465,11 @@ int executeCommand(char *cmd) {
             fprintf(stderr, "%s: command not found\n", head->str);
             exit(1);
         }
-        int status;
-        while (wait(&status) > 0);
-        exitStatus = (WIFEXITED(status)) ? (WEXITSTATUS(status)) : 1;
+        if (!waitForCommand) {
+            int status;
+            while (wait(&status) > 0);
+            exitStatus = (WIFEXITED(status)) ? (WEXITSTATUS(status)) : 1;
+        }
     }
     
     if (*stdinStatus) {
@@ -503,25 +505,30 @@ int processPipeCommands(char *cmd, char *orChr) {
             }
             pid_t cid = fork();
             if (cid == 0) {
-                dup2(fd[1], STDOUT_FILENO);
                 close(fd[0]);
-                (void) executeCommand(temp->str);
+                dup2(fd[1], STDOUT_FILENO);
+                close(fd[1]);
+                (void) executeCommand(temp->str, true);
                 exit(0);
             }
-            while (wait(NULL) > 0);
-            dup2(fd[0], STDIN_FILENO);
             close(fd[1]);
+            dup2(fd[0], STDIN_FILENO);
+            close(fd[0]);
+            while (wait(NULL) > 0);
         }
-        int exitStatus = temp != NULL ? executeCommand(temp->str) : 1;
-        dup2(terminal_stdout, STDOUT_FILENO);
-        dup2(terminal_stdin, STDIN_FILENO);
+        int exitStatus = 1;
+        if (temp != NULL) {
+            exitStatus = executeCommand(temp->str, false);
+            dup2(terminal_stdout, STDOUT_FILENO);
+            dup2(terminal_stdin, STDIN_FILENO);
+        }
         close(terminal_stdout);
         close(terminal_stdin);
         free(tempCmd);
         StringLinkedList_free(tokens);
         return exitStatus;
     }
-    return executeCommand(cmd);
+    return executeCommand(cmd, false);
 }
 
 int processOrCommands(char *cmd) {
