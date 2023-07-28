@@ -526,20 +526,20 @@ int processPipeCommands(char *cmd, char *orChr) {
         int terminal_stdout = dup(STDOUT_FILENO);
         int fd[2];
         StringNode *temp;
-        bool pipeForkFailed = false;
+        bool isFirstIteration = true;
+        bool pipeCommandFailed = false;
         for (temp = tokens->head; temp != tokens->tail; temp = temp->next) {
             if (pipe(fd) != 0) {
                 //Should not happen
-                fprintf(stderr, "%s: Failed to create pipe\n", SHELL_NAME);
-                free(tempCmd);
-                StringLinkedList_free(tokens);
-                return 1;
+                fprintf(stderr, "%s: Failed to create pipe for command \"%s\" in \"%s\"\n", SHELL_NAME, temp->str, cmd);
+                pipeCommandFailed = true;
+                break;
             }
             pid_t cid = fork();
             if (cid < 0) {
                 //Should not happen
-                fprintf(stderr, "%s: Failed to spawn child process for command \"%s\" in pipe\n", SHELL_NAME, cmd);
-                pipeForkFailed = true;
+                fprintf(stderr, "%s: Failed to spawn child process for command \"%s\" in \"%s\"\n", SHELL_NAME, temp->str, cmd);
+                pipeCommandFailed = true;
                 break;
             }
             if (cid == 0) {
@@ -552,15 +552,18 @@ int processPipeCommands(char *cmd, char *orChr) {
             close(fd[1]);
             dup2(fd[0], STDIN_FILENO);
             close(fd[0]);
+            isFirstIteration = false;
             while (wait(NULL) > 0);
         }
         int exitStatus = 1;
         if (temp != NULL) {
-            if (!pipeForkFailed) {
+            if (!pipeCommandFailed) {
                 exitStatus = executeCommand(temp->str, true);
             }
-            dup2(terminal_stdout, STDOUT_FILENO);
-            dup2(terminal_stdin, STDIN_FILENO);
+            if (!isFirstIteration) {
+                dup2(terminal_stdout, STDOUT_FILENO);
+                dup2(terminal_stdin, STDIN_FILENO);
+            }
         }
         close(terminal_stdout);
         close(terminal_stdin);
