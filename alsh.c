@@ -408,16 +408,16 @@ int executeCommand(char *cmd, bool waitForCommand) {
         "ls",
         "grep"
     };
-    if (strArrContains(colorAutoCmds, head->str, sizeof(colorAutoCmds) / sizeof(*colorAutoCmds))) {
+    if (head == NULL || strcmp(head->str, "false") == 0) {
+        isBuiltInCommand = true;
+        exitStatus = 1;
+    } else if (strArrContains(colorAutoCmds, head->str, sizeof(colorAutoCmds) / sizeof(*colorAutoCmds))) {
         if (IS_LINUX) {
             StringLinkedList_append(tokens, "--color=auto", false);
         }
     } else if (strcmp(head->str, "true") == 0) {
         isBuiltInCommand = true;
         exitStatus = 0;
-    } else if (strcmp(head->str, "false") == 0) {
-        isBuiltInCommand = true;
-        exitStatus = 1;
     } else if (strcmp(head->str, "cd") == 0) {
         isBuiltInCommand = true;
         StringNode *argNode = head->next;
