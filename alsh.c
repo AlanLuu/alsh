@@ -863,7 +863,10 @@ int main(int argc, char *argv[]) {
                     }
                     addCommandToHistory(cmd);
                     if (*cmd != COMMENT_CHAR) {
-                        if (strcmp(cmd, EXIT_COMMAND) == 0) {
+                        size_t exitCmdLen = strlen(EXIT_COMMAND);
+                        if (strncmp(cmd, EXIT_COMMAND, exitCmdLen) == 0
+                            && (!cmd[exitCmdLen] || cmd[exitCmdLen] == ' ')
+                        ) {
                             typedExitCommand = true;
                             break;
                         }
