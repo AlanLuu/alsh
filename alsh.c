@@ -31,7 +31,7 @@
 
 static char cwd[CWD_BUFFER_SIZE]; //Current working directory
 static struct passwd *pwd; //User info
-static char *redirectionStrs[] = {"<", ">", ">>"};
+static char *redirectionStrs[] = {"<", ">", "1>", "2>", ">>", "1>>", "2>>"};
 
 bool isInHomeDirectory(void) {
     char *cwdPtr = cwd;
@@ -252,12 +252,17 @@ int* handleRedirectStdout(char *cmd) {
             *status = -1;
         } else {
             int oldStdout = dup(STDOUT_FILENO);
-            status = emalloc(sizeof(int) * 2);
+            status = emalloc(sizeof(int) * 3);
             *status = 1;
             status[1] = oldStdout;
+            status[2] = *cmd != '>'
+                && (!isdigit(*cmd) || cmd[1] != '>')
+                && *(stdoutRedirectChr - 1) == '2'
+                && *(stdoutRedirectChr - 2) == ' '
+                ? STDERR_FILENO : STDOUT_FILENO;
             
             FILE *fp = fopen(fileName, fopenMode);
-            dup2(fileno(fp), STDOUT_FILENO);
+            dup2(fileno(fp), status[2]);
             fclose(fp);
         }
     } else {
@@ -334,18 +339,32 @@ int executeCommand(char *cmd, bool waitForCommand) {
         switch (*cmdPtr) {
             case '<':
             case '>': {
-                bool noSpaceOnLeft = *(cmdPtr - 1) != ' ' && *(cmdPtr - 1) != '>';
-                bool noSpaceOnRight = *(cmdPtr + 1) != ' ' && *(cmdPtr + 1) != '>';
+                char *cmdPtrLeft = cmdPtr - 1;
+                char *cmdPtrRight = cmdPtr + 1;
+                bool noSpaceOnLeft = *cmdPtrLeft != ' ' && *cmdPtrLeft != '>';
+                bool noSpaceOnRight = *cmdPtrRight != ' ' && *cmdPtrRight != '>';
 
                 //Avoid ub if cmdPtr is at the beginning of the string
                 if (cmdIndex > 0 && (noSpaceOnLeft || noSpaceOnRight)) {
-                    if (noSpaceOnLeft) {
+                    if (noSpaceOnLeft
+                        && (
+                            !isdigit(*cmdPtrLeft)
+                            || (
+                                cmdIndex > 1
+                                && *(cmdPtrLeft - 1) != ' '
+                            )
+                        )
+                    ) {
                         CharList_add(tempCmd, ' ');
                     }
+
                     CharList_add(tempCmd, *cmdPtr++);
-                    if (*(cmdPtr - 1) == '>' && *cmdPtr == '>') {
+                    if (*++cmdPtrLeft == '>' && *cmdPtr == '>') {
                         CharList_add(tempCmd, *cmdPtr++);
                     }
+
+                    //Do not put this line in any if statement so that a space is
+                    //always added to the right of the rightmost redirection character
                     CharList_add(tempCmd, ' ');
                 } else {
                     CharList_add(tempCmd, *cmdPtr++);
@@ -366,7 +385,7 @@ int executeCommand(char *cmd, bool waitForCommand) {
             close(stdinStatus[1]);
         }
         if (*stdoutStatus) {
-            dup2(stdoutStatus[1], STDOUT_FILENO);
+            dup2(stdoutStatus[1], stdoutStatus[2]);
             close(stdoutStatus[1]);
         }
         free(stdinStatus);
@@ -508,7 +527,7 @@ int executeCommand(char *cmd, bool waitForCommand) {
         close(stdinStatus[1]);
     }
     if (*stdoutStatus) {
-        dup2(stdoutStatus[1], STDOUT_FILENO);
+        dup2(stdoutStatus[1], stdoutStatus[2]);
         close(stdoutStatus[1]);
     }
     free(stdinStatus);

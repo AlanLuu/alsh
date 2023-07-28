@@ -109,6 +109,9 @@ char* StringLinkedList_removeIndex(StringLinkedList *list, int index) {
     char *str = NULL;
     StringNode *temp = list->head;
     if (index == 0) {
+        if (list->head == list->tail) {
+            list->tail = NULL;
+        }
         list->head = list->head->next;
         str = temp->str;
         free(temp);
