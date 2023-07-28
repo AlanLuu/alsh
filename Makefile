@@ -17,3 +17,6 @@ run: $(main_program_name)
 
 clean:
 	rm -f $(main_program_name)
+
+uninstall:
+	rm -f $(install_path)/$(main_program_name)

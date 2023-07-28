@@ -27,5 +27,10 @@ sudo make install
 ```
 This will install alsh as `alsh` in `/usr/local/bin`.
 
+To uninstall alsh, run the following command in the alsh directory:
+```
+sudo make uninstall
+```
+
 # License
 alsh is distributed under the terms of the [MIT License](https://github.com/AlanLuu/alsh/blob/main/LICENSE).
