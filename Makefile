@@ -1,6 +1,6 @@
 install_path=/usr/local/bin
 main_program_name=alsh
-flags=-Wall -Wextra -pedantic-errors -Wshadow -Wformat=2 -Wconversion -Wunused-parameter
+flags=-Wall -Wextra -pedantic-errors -Wshadow -Wformat=2 -Wconversion -Wunused-parameter -O2
 
 $(main_program_name): $(main_program_name).c utils/*
 	cc $(flags) -o $(main_program_name) $(main_program_name).c utils/*.c
