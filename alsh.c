@@ -85,101 +85,57 @@ void removeNewlineIfExists(char *str) {
 */
 StringLinkedList* split(char *str, char *delim) {
     StringLinkedList *tokens = StringLinkedList_create();
-    char *token = strtok(str, delim);
-    bool onlySpaceInDelim = *delim == ' ' && !delim[1];
-    while (token != NULL) {
-        char *quoteChrPos = NULL;
-        if (onlySpaceInDelim && (quoteChrPos = strchr(token, '"')) != NULL) {
-            //Found an opening quote character
-            CharList *tempCharList = CharList_create();
-            bool openQuote = true;
-            bool isfirstIteration = true;
-
-            //Loop until closing quote character is found or no more tokens
-            do {
-                quoteChrPos = quoteChrPos != NULL ? quoteChrPos : strchr(token, '"');
-
-                //First iteration: condition is always true
-                //Subsequent iterations: only true if a closing quote character is found
-                if (quoteChrPos != NULL) {
-                    char *quoteChrNext = quoteChrPos + 1;
-                    bool foundClosingQuote = strchr(quoteChrNext, '"') != NULL;
-
-                    //First iteration, only true if quoted part does not contain spaces
-                    //Subsequent iterations, always true
-                    if (!isfirstIteration || foundClosingQuote) {
-                        openQuote = false;
-                        if (!isfirstIteration) {
-                            //Quoted part contains spaces
-                            //Add necessary spaces
-                            char *tempToken = token - 1;
-                            while (*tempToken == '\0' || *tempToken == ' ') {
-                                CharList_add(tempCharList, ' ');
-                                tempToken--;
-                            }
-
-                            quoteChrNext = token;
-                            while (*quoteChrNext != '"') {
-                                CharList_add(tempCharList, *quoteChrNext++);
-                            }
-                        } else {
-                            //Quoted part does not contain spaces
-                            char *tempToken = token;
-                            while (*tempToken) {
-                                if (*tempToken != '"') {
-                                    CharList_add(tempCharList, *tempToken);
-                                }
-                                tempToken++;
-                            }
-                        }
-                    } else {
-                        //Did not find closing quote in first iteration token
-                        //Closing quote could be in next token
-                        CharList_addStr(tempCharList, quoteChrNext);
-                    }
-                } else {
-                    //Closing quote not found yet in next token
-                    //Add necessary spaces
-                    if (!isfirstIteration) {
-                        char *tempToken = token - 1;
-                        while (*tempToken == '\0' || *tempToken == ' ') {
-                            CharList_add(tempCharList, ' ');
-                            tempToken--;
-                        }
-                    }
-                    CharList_addStr(tempCharList, token);
+    CharList *strList = CharList_create();
+    size_t delimLen = strlen(delim);
+    char *tempStr = str;
+    bool inQuote = false;
+    while (*tempStr) {
+        if (*tempStr == '"') {
+            inQuote = !inQuote;
+        } else if (!inQuote && strstr(tempStr, delim) == tempStr) {
+            *tempStr = '\0';
+            tempStr = str;
+            while (*tempStr) {
+                if (*tempStr != '"') {
+                    CharList_add(strList, *tempStr);
                 }
-
-                quoteChrPos = NULL;
-                token = strtok(NULL, delim);
-                isfirstIteration = false;
-            } while (openQuote && token != NULL);
-
-            //Did not find closing quote character
-            if (openQuote) {
-                bool containsStr = false;
-                for (size_t i = 0; i < sizeof(redirectionStrs) / sizeof(*redirectionStrs); i++) {
-                    if (StringLinkedList_contains(tokens, redirectionStrs[i])) {
-                        containsStr = true;
-                        break;
-                    }
-                }
-                if (!containsStr) {
-                    fprintf(stderr, "%s: Missing closing quote\n", SHELL_NAME);
-                }
-                StringLinkedList_free(tokens);
-                return NULL;
+                tempStr++;
             }
-
-            //Add quoted section to the linked list as a single token
-            char *charListCopy = CharList_toStr(tempCharList);
-            StringLinkedList_append(tokens, charListCopy, true);
-            CharList_free(tempCharList);
-        } else {
-            StringLinkedList_append(tokens, token, false);
-            token = strtok(NULL, delim);
+            char *strListCopy = CharList_toStr(strList);
+            StringLinkedList_append(tokens, strListCopy, true);
+            CharList_clear(strList);
+            str = tempStr;
+            if (*delim == ' ' && !delim[1]) {
+                do {
+                    str++;
+                } while (*str == ' ');
+            } else {
+                str += delimLen;
+            }
+            tempStr = str - 1;
         }
+        tempStr++;
     }
+
+    if (inQuote) {
+        fprintf(stderr, "%s: Missing closing quote\n", SHELL_NAME);
+        StringLinkedList_free(tokens);
+        CharList_free(strList);
+        
+        StringLinkedList *emptyTokens = StringLinkedList_create();
+        return emptyTokens;
+    }
+
+    tempStr = str;
+    while (*tempStr) {
+        if (*tempStr != '"') {
+            CharList_add(strList, *tempStr);
+        }
+        tempStr++;
+    }
+    char *strListCopy = CharList_toStr(strList);
+    StringLinkedList_append(tokens, strListCopy, true);
+    CharList_free(strList);
     return tokens;
 }
 
@@ -565,6 +521,7 @@ int processPipeCommands(char *cmd, char *orChr) {
                 close(fd[0]);
                 dup2(fd[1], STDOUT_FILENO);
                 close(fd[1]);
+                trimWhitespaceFromEnds(temp->str);
                 (void) executeCommand(temp->str, false);
                 exit(0);
             }
@@ -577,6 +534,7 @@ int processPipeCommands(char *cmd, char *orChr) {
         int exitStatus = 1;
         if (temp != NULL) {
             if (!pipeCommandFailed) {
+                trimWhitespaceFromEnds(temp->str);
                 exitStatus = executeCommand(temp->str, true);
             }
             if (!isFirstIteration) {

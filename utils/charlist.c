@@ -37,7 +37,7 @@ void CharList_addAt(CharList *list, int index, char value) {
     if (index < 0 || index > list->size) {
         return;
     }
-    if (list->size == list->capacity) {
+    if (list->size + 1 == list->capacity) {
         CharList_resize(list);
     }
     for (int i = list->size; i > index; i--) {
