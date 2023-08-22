@@ -102,19 +102,16 @@ void StringLinkedList_prepend(StringLinkedList *list, char *str, bool strMustBeF
     StringLinkedList_addAt(list, 0, str, strMustBeFreed);
 }
 
-char* StringLinkedList_removeIndex(StringLinkedList *list, int index) {
+StringNode* StringLinkedList_removeIndex(StringLinkedList *list, int index) {
     if (index < 0 || index >= list->size) {
         return NULL;
     }
-    char *str = NULL;
     StringNode *temp = list->head;
     if (index == 0) {
         if (list->head == list->tail) {
             list->tail = NULL;
         }
         list->head = list->head->next;
-        str = temp->str;
-        free(temp);
         list->size--;
     } else {
         StringNode *prev = NULL;
@@ -125,21 +122,32 @@ char* StringLinkedList_removeIndex(StringLinkedList *list, int index) {
                     list->tail = prev;
                 }
                 prev->next = temp->next;
-                str = temp->str;
-                free(temp);
                 list->size--;
                 break;
             }
             prev = temp;
         }
     }
-    return str;
+    if (temp != NULL) {
+        temp->next = NULL;
+    }
+    return temp;
+}
+
+void StringLinkedList_removeIndexAndFreeNode(StringLinkedList *list, int index) {
+    StringNode *node = StringLinkedList_removeIndex(list, index);
+    if (node != NULL) {
+        if (node->strMustBeFreed) {
+            free(node->str);
+        }
+        free(node);
+    }
 }
 
 void StringLinkedList_removeValue(StringLinkedList *list, char *str) {
     if (list->head == NULL) return;
     if (strcmp(list->head->str, str) == 0) {
-        (void) StringLinkedList_removeIndex(list, 0);
+        StringLinkedList_removeIndexAndFreeNode(list, 0);
     } else {
         StringNode *prev = NULL;
         for (StringNode *temp = list->head->next; temp != NULL; temp = temp->next) {
@@ -148,6 +156,9 @@ void StringLinkedList_removeValue(StringLinkedList *list, char *str) {
                     list->tail = prev;
                 }
                 prev->next = temp->next;
+                if (temp->strMustBeFreed) {
+                    free(temp->str);
+                }
                 free(temp);
                 list->size--;
                 break;

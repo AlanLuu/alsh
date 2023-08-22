@@ -31,7 +31,6 @@
 
 static char cwd[CWD_BUFFER_SIZE]; //Current working directory
 static struct passwd *pwd; //User info
-static char *redirectionStrs[] = {"<", ">", "1>", "2>", ">>", "1>>", "2>>"};
 
 bool isInHomeDirectory(void) {
     char *cwdPtr = cwd;
@@ -335,7 +334,7 @@ int executeCommand(char *cmd, bool waitForCommand) {
     }
 
     StringLinkedList *tokens = split(tempCmd->data, " ");
-    if (tokens == NULL) {
+    if (tokens->size == 0) {
         if (*stdinStatus) {
             dup2(stdinStatus[1], STDIN_FILENO);
             close(stdinStatus[1]);
@@ -347,23 +346,23 @@ int executeCommand(char *cmd, bool waitForCommand) {
         free(stdinStatus);
         free(stdoutStatus);
         CharList_free(tempCmd);
+        StringLinkedList_free(tokens);
         return 1;
     }
+
+    char *redirectionStrs[] = {"<", ">", "1>", "2>", ">>", "1>>", "2>>"};
     for (size_t i = 0; i < sizeof(redirectionStrs) / sizeof(*redirectionStrs); i++) {
         char *strToRemove = redirectionStrs[i];
         int strToRemoveIndex = StringLinkedList_indexOf(tokens, strToRemove);
         if (strToRemoveIndex != -1) {
-            (void) StringLinkedList_removeIndex(tokens, strToRemoveIndex);
-            (void) StringLinkedList_removeIndex(tokens, strToRemoveIndex);
+            StringLinkedList_removeIndexAndFreeNode(tokens, strToRemoveIndex);
+            StringLinkedList_removeIndexAndFreeNode(tokens, strToRemoveIndex);
         }
     }
 
     StringNode *head = tokens->head;
     bool isBuiltInCommand = false;
-    char *colorAutoCmds[] = {
-        "ls",
-        "grep"
-    };
+    char *colorAutoCmds[] = {"ls", "grep"};
     if (head == NULL || strcmp(head->str, "false") == 0) {
         isBuiltInCommand = true;
         exitStatus = 1;
