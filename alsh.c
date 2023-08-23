@@ -30,6 +30,7 @@
 #endif
 
 static char cwd[CWD_BUFFER_SIZE]; //Current working directory
+static char *executablePath; //Path to where the current alsh shell executable is
 static struct passwd *pwd; //User info
 
 bool isInHomeDirectory(void) {
@@ -414,6 +415,23 @@ int executeCommand(char *cmd, bool waitForCommand) {
             fprintf(stderr, "%s: cd: %s: %s\n", SHELL_NAME, arg, err);
             exitStatus = 1;
         }
+    } else if (strcmp(head->str, "exec") == 0) {
+        StringNode *argNode = head->next;
+        StringLinkedList_removeIndexAndFreeNode(tokens, 0);
+        char *command;
+        if (argNode != NULL) {
+            command = argNode->str;
+        } else {
+            StringLinkedList_append(tokens, executablePath, false);
+            command = executablePath;
+        }
+        StringLinkedList_append(tokens, NULL, false);
+        char **tokensArr = StringLinkedList_toArray(tokens);
+        execvp(command, tokensArr);
+        fprintf(stderr, "%s: exec: %s: not found\n", SHELL_NAME, command);
+        free(tokensArr);
+        isBuiltInCommand = true;
+        exitStatus = 1;
     } else if (strcmp(head->str, HISTORY_COMMAND) == 0) {
         isBuiltInCommand = true;
         StringNode *argNode = head->next;
@@ -749,6 +767,7 @@ void printPrompt(void) {
 
 int main(int argc, char *argv[]) {
     char *cmd = emalloc(sizeof(char) * COMMAND_BUFFER_SIZE);
+    executablePath = argv[0];
     pwd = getpwuid(getuid());
     if (argc > 1) {
         FILE *fp = fopen(argv[1], "r");

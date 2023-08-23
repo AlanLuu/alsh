@@ -17,6 +17,8 @@ A custom UNIX shell written in C
     - To execute the command `n` lines back in the history list, use `!-n` (e.g. `!-2` will execute the command 2 lines back in the history list)
     - To clear the history list, use `history -c`
     - To write the history list to a file, use `history -w`, which will write the list to `~/.alsh_history`
+- Replace the current alsh shell's process with a new process by using `exec [command]`
+    - Running `exec` without specifying a command will replace the current alsh shell's process with a new instance of another alsh shell
 
 # Installation
 ```
