@@ -431,7 +431,7 @@ int executeCommand(char *cmd, bool waitForCommand) {
         char *err;
         switch (errno) {
             case ENOENT:
-                err = "command not found";
+                err = "not found";
                 break;
             case EACCES:
                 err = "Permission denied";
