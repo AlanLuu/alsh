@@ -428,7 +428,19 @@ int executeCommand(char *cmd, bool waitForCommand) {
         StringLinkedList_append(tokens, NULL, false);
         char **tokensArr = StringLinkedList_toArray(tokens);
         execvp(command, tokensArr);
-        fprintf(stderr, "%s: exec: %s: not found\n", SHELL_NAME, command);
+        char *err;
+        switch (errno) {
+            case ENOENT:
+                err = "command not found";
+                break;
+            case EACCES:
+                err = "Permission denied";
+                break;
+            default:
+                err = "Failed to execute command";
+                break;
+        }
+        fprintf(stderr, "%s: exec: %s: %s\n", SHELL_NAME, command, err);
         free(tokensArr);
         isBuiltInCommand = true;
         exitStatus = 1;
@@ -480,7 +492,19 @@ int executeCommand(char *cmd, bool waitForCommand) {
                 StringLinkedList_append(tokens, NULL, false);
                 char **tokensArr = StringLinkedList_toArray(tokens);
                 execvp(head->str, tokensArr);
-                fprintf(stderr, "%s: command not found\n", head->str);
+                char *err;
+                switch (errno) {
+                    case ENOENT:
+                        err = "command not found";
+                        break;
+                    case EACCES:
+                        err = "Permission denied";
+                        break;
+                    default:
+                        err = "Failed to execute command";
+                        break;
+                }
+                fprintf(stderr, "%s: %s: %s\n", SHELL_NAME, head->str, err);
                 exit(1);
             }
             if (waitForCommand) {
