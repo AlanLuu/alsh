@@ -211,11 +211,28 @@ int* handleRedirectStdout(char *cmd) {
             status = emalloc(sizeof(int) * 3);
             *status = 1;
             status[1] = oldStdout;
-            status[2] = *cmd != '>'
-                && (!isdigit(*cmd) || cmd[1] != '>')
-                && *(stdoutRedirectChr - 1) == '2'
-                && *(stdoutRedirectChr - 2) == ' '
-                ? STDERR_FILENO : STDOUT_FILENO;
+            if (*cmd != '>' && isdigit(stdoutRedirectChr[-1])) {
+                char *digit = stdoutRedirectChr - 1;
+                do {
+                    digit--;
+                } while (isdigit(*digit));
+
+                if (*digit == ' ') {
+                    digit = stdoutRedirectChr - 1;
+                    int fileDescriptor = 0;
+                    int factor = 1;
+                    do {
+                        fileDescriptor += (*digit - '0') * factor;
+                        factor *= 10;
+                    } while (isdigit(*--digit));
+
+                    status[2] = fileDescriptor;
+                } else {
+                    status[2] = STDOUT_FILENO;
+                }
+            } else {
+                status[2] = STDOUT_FILENO;
+            }
             
             FILE *fp = fopen(fileName, fopenMode);
             dup2(fileno(fp), status[2]);
@@ -243,9 +260,21 @@ int* handleRedirectStdin(char *cmd) {
         if (stdoutRedirectChr != NULL) {
             do {
                 stdoutRedirectChr--;
-            } while (*stdoutRedirectChr == ' ');
-            
-            stdoutRedirectChr++;
+            } while (isdigit(*stdoutRedirectChr));
+
+            //If n is the file descriptor to redirect to, parse "a < bn>c" as "a < bn > c"
+            if (*stdoutRedirectChr == ' ') {
+                do {
+                    stdoutRedirectChr--;
+                } while (*stdoutRedirectChr == ' ');
+
+                stdoutRedirectChr++;
+            } else {
+                do {
+                    stdoutRedirectChr++;
+                } while (isdigit(*stdoutRedirectChr));
+            }
+
             *stdoutRedirectChr = '\0';
         }
 
@@ -351,13 +380,21 @@ int executeCommand(char *cmd, bool waitForCommand) {
         return 1;
     }
 
-    char *redirectionStrs[] = {"<", ">", "1>", "2>", ">>", "1>>", "2>>"};
-    for (size_t i = 0; i < sizeof(redirectionStrs) / sizeof(*redirectionStrs); i++) {
-        char *strToRemove = redirectionStrs[i];
-        int strToRemoveIndex = StringLinkedList_indexOf(tokens, strToRemove);
-        if (strToRemoveIndex != -1) {
-            StringLinkedList_removeIndexAndFreeNode(tokens, strToRemoveIndex);
-            StringLinkedList_removeIndexAndFreeNode(tokens, strToRemoveIndex);
+    int tempNodeIndex = 0;
+    for (StringNode *temp = tokens->head; temp != NULL;) {
+        char *strToRemove = temp->str;
+        size_t strToRemoveLen = strlen(strToRemove);
+        char lastChr = strToRemove[strToRemoveLen - 1];
+        if (lastChr == '<' || lastChr == '>') {
+            temp = temp->next;
+            if (temp != NULL) {
+                temp = temp->next;
+                StringLinkedList_removeIndexAndFreeNode(tokens, tempNodeIndex);
+            }
+            StringLinkedList_removeIndexAndFreeNode(tokens, tempNodeIndex);
+        } else {
+            temp = temp->next;
+            tempNodeIndex++;
         }
     }
 

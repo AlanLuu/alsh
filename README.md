@@ -5,7 +5,7 @@ A custom UNIX shell written in C
 - Execute commands (e.g. `ls`)
 - Execute commands with arguments and flags (e.g. `ls -la /`)
 - Execute commands with redirection `<` `>` `>>`
-    - Standard error can be redirected or appended to a file by using `2>` or `2>>` respectively
+    - Output from a given file descriptor can be redirected or appended to a file by using `n>` or `n>>` respectively, where `n` is the file descriptor number
 - Execute commands with pipes `|`
 - Execute multiple commands separated by `;` on the same line
     - Given the statement `cmd1; cmd2`, `cmd1` and `cmd2` are executed sequentially
