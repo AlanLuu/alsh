@@ -19,6 +19,8 @@ A custom UNIX shell written in C
     - To write the history list to a file, use `history -w`, which will write the list to `~/.alsh_history`
 - Replace the current alsh shell's process with a new process by using `exec [command]`
     - Running `exec` without specifying a command will replace the current alsh shell's process with a new instance of another alsh shell
+- `repeat (n) <command>` will execute the given command `n` times
+    - Multiple `repeat` loops can be chained together (e.g. `repeat (n) repeat (m) <command>` will execute the given command `m * n` times)
 
 # Installation
 ```

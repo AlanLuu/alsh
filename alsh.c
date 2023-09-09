@@ -195,7 +195,7 @@ int* handleRedirectStdout(char *cmd) {
     int *status;
     if (stdoutRedirectChr != NULL) {
         char *fileName = stdoutRedirectChr + 1;
-        char *fopenMode = "w";
+        const char *fopenMode = "w";
         while (*fileName == ' ' || *fileName == '>') {
             if (*fileName == '>') fopenMode = "a";
             fileName++;
@@ -675,11 +675,81 @@ int processAndCommands(char *cmd) {
     return processOrCommands(cmd);
 }
 
-void processCommand(char *cmd) {
+int processCommand(char *cmd) {
     //Check for comments
     char *commentChr = strchr(cmd, COMMENT_CHAR);
     if (commentChr != NULL && *(commentChr - 1) == ' ') {
         *commentChr = '\0';
+    }
+
+    const char *const loopCommand = "repeat";
+    size_t loopCommandLen = strlen(loopCommand);
+    if (strncmp(cmd, loopCommand, loopCommandLen) == 0
+        && (
+            !cmd[loopCommandLen]
+            || cmd[loopCommandLen] == ' '
+            || cmd[loopCommandLen] == '('
+        )
+    ) {
+        char *counter = cmd + loopCommandLen;
+        while (*counter == ' ') {
+            counter++;
+        }
+        if (*counter != '(') {
+            if (!*counter) {
+                fprintf(stderr, "%s: syntax error: unexpected end of input, expected '('\n", SHELL_NAME);
+            } else {
+                fprintf(stderr, "%s: syntax error: unexpected token '%c', expected '('\n", SHELL_NAME, *counter);
+            }
+            return -1;
+        }
+
+        counter++;
+        while (*counter == ' ') {
+            counter++;
+        }
+        if (!isdigit(*counter)) {
+            if (!*counter) {
+                fprintf(stderr, "%s: syntax error: unexpected end of input, expected integer\n", SHELL_NAME);
+            } else {
+                fprintf(stderr, "%s: syntax error: unexpected token '%c'\n", SHELL_NAME, *counter);
+            }
+            return -1;
+        }
+
+        int loopAmount = 0;
+        do {
+            loopAmount = (loopAmount * 10) + (*counter - '0');
+        } while (isdigit(*++counter));
+
+        while (*counter == ' ') {
+            counter++;
+        }
+        if (*counter != ')') {
+            if (!*counter) {
+                fprintf(stderr, "%s: syntax error: unexpected end of input, expected ')'\n", SHELL_NAME);
+            } else {
+                fprintf(stderr, "%s: syntax error: unexpected token '%c', expected ')'\n", SHELL_NAME, *counter);
+            }
+            return -1;
+        }
+
+        counter++;
+        while (*counter == ' ') {
+            counter++;
+        }
+        if (!*counter) {
+            fprintf(stderr, "%s: syntax error: unexpected end of input\n", SHELL_NAME);
+            return -1;
+        }
+
+        for (int i = 0; i < loopAmount; i++) {
+            int status = processCommand(counter);
+            if (status < 0) { //status < 0 means a syntax error occurred
+                return status;
+            }
+        }
+        return 0;
     }
 
     //Check for semicolon operators
@@ -693,10 +763,10 @@ void processCommand(char *cmd) {
         }
         free(tempCmd);
         StringLinkedList_free(tokens);
-        return;
+        return 0;
     }
 
-    (void) processAndCommands(cmd);
+    return processAndCommands(cmd);
 }
 
 void addCommandToHistory(char *cmd) {
@@ -840,7 +910,7 @@ int main(int argc, char *argv[]) {
             removeNewlineIfExists(cmd);
             bool trimSuccess = trimWhitespaceFromEnds(cmd);
             if (*cmd && *cmd != COMMENT_CHAR && trimSuccess) {
-                processCommand(cmd);
+                (void) processCommand(cmd);
             }
         }
         fclose(fp);
