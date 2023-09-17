@@ -682,6 +682,136 @@ int processCommand(char *cmd) {
         *commentChr = '\0';
     }
 
+    //Syntax: if ([-]* <commandToTest>) <command1> [else <command2>]
+    const char *const ifStatement = "if";
+    size_t ifStatementLen = strlen(ifStatement);
+    if (strncmp(cmd, ifStatement, ifStatementLen) == 0
+        && (
+            !cmd[ifStatementLen]
+            || cmd[ifStatementLen] == ' '
+            || cmd[ifStatementLen] == '('
+        )
+    ) {
+        char *counter = cmd + ifStatementLen;
+        while (*counter == ' ') {
+            counter++;
+        }
+        if (*counter != '(') {
+            if (!*counter) {
+                fprintf(stderr, "%s: syntax error: unexpected end of input, expected '('\n", SHELL_NAME);
+            } else {
+                fprintf(stderr, "%s: syntax error: unexpected token '%c', expected '('\n", SHELL_NAME, *counter);
+            }
+            return -1;
+        }
+
+        do {
+            counter++;
+        } while (*counter == ' ');
+
+        CharList *testCmdList = CharList_create();
+        int nestLevel = 1;
+        bool negate = false;
+        do {
+            if (*counter == '(') {
+                nestLevel++;
+            } else if (*counter == ')') {
+                if (testCmdList->size == 0) {
+                    fprintf(stderr, "%s: syntax error: unexpected token ')'\n", SHELL_NAME);
+                    CharList_free(testCmdList);
+                    return -1;
+                } else {
+                    nestLevel--;
+                }
+            } else if (!*counter) {
+                if (testCmdList->size == 0) {
+                    fprintf(stderr, "%s: syntax error: unexpected end of input, expected test condition\n", SHELL_NAME);
+                } else {
+                    fprintf(stderr, "%s: syntax error: unexpected end of input, expected ')'\n", SHELL_NAME);
+                }
+                CharList_free(testCmdList);
+                return -1;
+            }
+
+            if (testCmdList->size == 0) {
+                if (*counter == '-') {
+                    negate = !negate;
+                } else if (*counter != ' ') {
+                    CharList_add(testCmdList, *counter);
+                }
+            } else if (nestLevel > 0) {
+                CharList_add(testCmdList, *counter);
+            }
+            
+            counter++;
+        } while (nestLevel > 0);
+
+        do {
+            counter++;
+        } while (*counter == ' ');
+        if (!*counter) {
+            fprintf(stderr, "%s: syntax error: unexpected end of input, expected command after '%s'\n", SHELL_NAME, cmd);
+            CharList_free(testCmdList);
+            return -1;
+        }
+
+        char *testCmd = CharList_toStr(testCmdList);
+        if (!*testCmd) {
+            fprintf(stderr, "%s: syntax error: unexpected token ')'\n", SHELL_NAME);
+            CharList_free(testCmdList);
+            return -1;
+        }
+
+        trimWhitespaceFromEnds(testCmd);
+        int status = processCommand(testCmd);
+
+        const char *const elseStatement = "else";
+        size_t elseStatementLen = strlen(elseStatement);
+        char *elseLocation = strstr(counter, elseStatement);
+        if (elseLocation != NULL && *(elseLocation - 1) == ' ') {
+            char *elseCounter = elseLocation + elseStatementLen;
+            while (*elseCounter == ' ') {
+                elseCounter++;
+            }
+            if (!*elseCounter) {
+                fprintf(stderr, "%s: syntax error: unexpected end of input after '%s'\n", SHELL_NAME, elseStatement);
+                CharList_free(testCmdList);
+                return -1;
+            }
+            if (strncmp(elseCounter, ifStatement, ifStatementLen) != 0) {
+                char *nextElseLocation = strstr(elseCounter, elseStatement);
+                while (nextElseLocation != NULL && *(nextElseLocation - 1) == ' ') {
+                    elseLocation = nextElseLocation;
+                    elseCounter = elseLocation + elseStatementLen;
+                    nextElseLocation = strstr(elseCounter, elseStatement);
+                }
+            }
+
+            CharList *ifCounterList = CharList_create();
+            while (counter < elseLocation) {
+                CharList_add(ifCounterList, *counter++);
+            }
+
+            char *ifCounter = CharList_toStr(ifCounterList);
+            trimWhitespaceFromEnds(ifCounter);
+            if (!negate) {
+                (void) processCommand(status == 0 ? ifCounter : elseCounter);
+            } else {
+                (void) processCommand(status != 0 ? ifCounter : elseCounter);
+            }
+
+            free(ifCounter);
+            CharList_free(ifCounterList);
+        } else if ((!negate && status == 0) || (negate && status != 0)) {
+            (void) processCommand(counter);
+        }
+
+        free(testCmd);
+        CharList_free(testCmdList);
+        return status;
+    }
+
+    //Syntax: repeat (<integer>) <command>
     const char *const loopCommand = "repeat";
     size_t loopCommandLen = strlen(loopCommand);
     if (strncmp(cmd, loopCommand, loopCommandLen) == 0
@@ -704,10 +834,9 @@ int processCommand(char *cmd) {
             return -1;
         }
 
-        counter++;
-        while (*counter == ' ') {
+        do {
             counter++;
-        }
+        } while (*counter == ' ');
         if (!isdigit(*counter)) {
             if (!*counter) {
                 fprintf(stderr, "%s: syntax error: unexpected end of input, expected integer\n", SHELL_NAME);
@@ -734,12 +863,11 @@ int processCommand(char *cmd) {
             return -1;
         }
 
-        counter++;
-        while (*counter == ' ') {
+        do {
             counter++;
-        }
+        } while (*counter == ' ');
         if (!*counter) {
-            fprintf(stderr, "%s: syntax error: unexpected end of input\n", SHELL_NAME);
+            fprintf(stderr, "%s: syntax error: unexpected end of input, expected command after '%s'\n", SHELL_NAME, cmd);
             return -1;
         }
 

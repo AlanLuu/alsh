@@ -21,6 +21,12 @@ A custom UNIX shell written in C
     - Running `exec` without specifying a command will replace the current alsh shell's process with a new instance of another alsh shell
 - `repeat (n) <command>` will execute the given command `n` times
     - Multiple `repeat` loops can be chained together (e.g. `repeat (n) repeat (m) <command>` will execute the given command `m * n` times)
+- `if (<commandToTest>) <command>` will only execute the given command if `commandToTest` returns an exit status of 0, which indicates success
+    - `if (<commandToTest>) <command1> else <command2>` will execute the first command if `commandToTest` returns an exit status of 0, and the second command otherwise
+    - `if (<commandToTest>) <command1> else if (<commandToTest2>) <command2> else <command3>` will execute the first command if `commandToTest` returns an exit status of 0, which indicates success, the second command if `commandToTest` returns a non-zero exit status and `commandToTest2` returns an exit status of 0, and the third command otherwise
+    - The command to test can be negated by using the `-` operator (e.g. `if (-<commandToTest>) <command>` will only execute the given command if `commandToTest` returns a non-zero exit status, which indicates failure)
+        - Negated commands can also be negated themselves, so `if (--<commandToTest>) <command>` is equivalent to `if (<commandToTest>) <command>`
+        - An odd number of `-` operators will negate the command, and an even number of `-` operators will not negate the command
 
 # Installation
 ```
