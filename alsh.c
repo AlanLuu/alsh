@@ -745,10 +745,10 @@ int processCommand(char *cmd) {
             
             counter++;
         } while (nestLevel > 0);
-
-        do {
+        
+        while (*counter == ' ') {
             counter++;
-        } while (*counter == ' ');
+        }
         if (!*counter) {
             fprintf(stderr, "%s: syntax error: unexpected end of input, expected command after '%s'\n", SHELL_NAME, cmd);
             CharList_free(testCmdList);
