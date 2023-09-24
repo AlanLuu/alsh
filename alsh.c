@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "utils/charlist.h"
@@ -465,13 +466,28 @@ int executeCommand(char *cmd, bool waitForCommand) {
         StringLinkedList_append(tokens, NULL, false);
         char **tokensArr = StringLinkedList_toArray(tokens);
         execvp(command, tokensArr);
-        char *err;
+        const char *isDirErr = "cannot execute: Is a directory";
+        const char *err;
+        struct stat statbuf;
         switch (errno) {
-            case ENOENT:
-                err = "not found";
+            case ENOENT: {
+                char currentDirCmd[strlen(command) + 2 + 1];
+                currentDirCmd[0] = '.';
+                currentDirCmd[1] = '/';
+                strcpy(currentDirCmd + 2, command);
+                if (stat(currentDirCmd, &statbuf) == 0 && S_ISDIR(statbuf.st_mode)) {
+                    err = isDirErr;
+                } else {
+                    err = "not found";
+                }
                 break;
+            }
             case EACCES:
-                err = "Permission denied";
+                if (stat(command, &statbuf) == 0 && S_ISDIR(statbuf.st_mode)) {
+                    err = isDirErr;
+                } else {
+                    err = "Permission denied";
+                }
                 break;
             default:
                 err = "Failed to execute command";
@@ -495,7 +511,8 @@ int executeCommand(char *cmd, bool waitForCommand) {
                     //Total of 52 characters for /home/<username>/.alsh_history
                     //Maximum of 32 characters for <username>
                     //20 characters for the rest of the path
-                    char historyFile[USERNAME_MAX_LENGTH + 20];
+                    //1 character for the null terminator
+                    char historyFile[USERNAME_MAX_LENGTH + 20 + 1];
                     strcpy(historyFile, pwd->pw_dir);
                     strcat(historyFile, "/" HISTORY_FILE_NAME);
                     FILE *historyfp = fopen(historyFile, "w");
@@ -531,12 +548,24 @@ int executeCommand(char *cmd, bool waitForCommand) {
                 execvp(head->str, tokensArr);
                 char *err;
                 switch (errno) {
-                    case ENOENT:
-                        err = "command not found";
+                    case ENOENT: {
+                        char *headStr = head->str;
+                        if (*headStr == '/' || (*headStr == '.' && headStr[1] == '/')) {
+                            err = "No such file or directory";
+                        } else {
+                            err = "command not found";
+                        }
                         break;
-                    case EACCES:
-                        err = "Permission denied";
+                    }
+                    case EACCES: {
+                        struct stat statbuf;
+                        if (stat(head->str, &statbuf) == 0 && S_ISDIR(statbuf.st_mode)) {
+                            err = "Is a directory";
+                        } else {
+                            err = "Permission denied";
+                        }
                         break;
+                    }
                     default:
                         err = "Failed to execute command";
                         break;
@@ -1049,7 +1078,8 @@ int main(int argc, char *argv[]) {
         //Total of 52 characters for /home/<username>/.alsh_history
         //Maximum of 32 characters for <username>
         //20 characters for the rest of the path
-        char historyFile[USERNAME_MAX_LENGTH + 20];
+        //1 character for the null terminator
+        char historyFile[USERNAME_MAX_LENGTH + 20 + 1];
         strcpy(historyFile, pwd->pw_dir);
         strcat(historyFile, "/" HISTORY_FILE_NAME);
         FILE *historyfp = fopen(historyFile, "r");
