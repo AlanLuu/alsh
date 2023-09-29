@@ -793,6 +793,7 @@ int processCommand(char *cmd) {
 
         trimWhitespaceFromEnds(testCmd);
         int status = processCommand(testCmd);
+        bool ifCond = (!negate && status == 0) || (negate && status != 0);
 
         const char *const elseStatement = "else";
         size_t elseStatementLen = strlen(elseStatement);
@@ -816,22 +817,23 @@ int processCommand(char *cmd) {
                 }
             }
 
-            CharList *ifCounterList = CharList_create();
-            while (counter < elseLocation) {
-                CharList_add(ifCounterList, *counter++);
-            }
+            if (ifCond) {
+                CharList *ifCounterList = CharList_create();
+                while (counter < elseLocation) {
+                    CharList_add(ifCounterList, *counter++);
+                }
 
-            char *ifCounter = CharList_toStr(ifCounterList);
-            trimWhitespaceFromEnds(ifCounter);
-            if (!negate) {
-                (void) processCommand(status == 0 ? ifCounter : elseCounter);
+                char *ifCounter = CharList_toStr(ifCounterList);
+                trimWhitespaceFromEnds(ifCounter);
+                (void) processCommand(ifCounter);
+
+                free(ifCounter);
+                CharList_free(ifCounterList);
             } else {
-                (void) processCommand(status != 0 ? ifCounter : elseCounter);
+                trimWhitespaceFromEnds(elseCounter);
+                (void) processCommand(elseCounter);
             }
-
-            free(ifCounter);
-            CharList_free(ifCounterList);
-        } else if ((!negate && status == 0) || (negate && status != 0)) {
+        } else if (ifCond) {
             (void) processCommand(counter);
         }
 
