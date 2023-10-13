@@ -1074,31 +1074,31 @@ int main(int argc, char *argv[]) {
         }
         fclose(fp);
     } else {
-        history.capacity = STARTING_HISTORY_CAPACITY;
-        history.elements = emalloc(sizeof(char*) * (size_t) history.capacity);
-
-        //Total of 52 characters for /home/<username>/.alsh_history
-        //Maximum of 32 characters for <username>
-        //20 characters for the rest of the path
-        //1 character for the null terminator
-        char historyFile[USERNAME_MAX_LENGTH + 20 + 1];
-        strcpy(historyFile, pwd->pw_dir);
-        strcat(historyFile, "/" HISTORY_FILE_NAME);
-        FILE *historyfp = fopen(historyFile, "r");
-        if (historyfp != NULL) {
-            while (fgets(cmd, COMMAND_BUFFER_SIZE, historyfp) != NULL) {
-                removeNewlineIfExists(cmd);
-                bool trimSuccess = trimWhitespaceFromEnds(cmd);
-                if (*cmd && *cmd != COMMENT_CHAR && trimSuccess) {
-                    addCommandToHistory(cmd);
-                }
-            }
-            fclose(historyfp);
-        }
-
         bool stdinFromTerminal = isatty(STDIN_FILENO);
-        bool typedExitCommand = false;
         if (stdinFromTerminal) {
+            history.capacity = STARTING_HISTORY_CAPACITY;
+            history.elements = emalloc(sizeof(char*) * (size_t) history.capacity);
+
+            //Total of 52 characters for /home/<username>/.alsh_history
+            //Maximum of 32 characters for <username>
+            //20 characters for the rest of the path
+            //1 character for the null terminator
+            char historyFile[USERNAME_MAX_LENGTH + 20 + 1];
+            strcpy(historyFile, pwd->pw_dir);
+            strcat(historyFile, "/" HISTORY_FILE_NAME);
+
+            FILE *historyfp = fopen(historyFile, "r");
+            if (historyfp != NULL) {
+                while (fgets(cmd, COMMAND_BUFFER_SIZE, historyfp) != NULL) {
+                    removeNewlineIfExists(cmd);
+                    bool trimSuccess = trimWhitespaceFromEnds(cmd);
+                    if (*cmd && *cmd != COMMENT_CHAR && trimSuccess) {
+                        addCommandToHistory(cmd);
+                    }
+                }
+                fclose(historyfp);
+            }
+
             struct sigaction sa = {
                 .sa_handler = sigintHandler
             };
@@ -1111,24 +1111,27 @@ int main(int argc, char *argv[]) {
 
         //Ignore SIGINT so that the shell doesn't exit when user sends it
         //usually by pressing Ctrl+C
+        bool typedExitCommand = false;
         do {
             sigintReceived = false;
             while (fgets(cmd, COMMAND_BUFFER_SIZE, stdin) != NULL) {
                 removeNewlineIfExists(cmd);
                 bool trimSuccess = trimWhitespaceFromEnds(cmd);
                 if (*cmd && trimSuccess) {
-                    int processHistoryStatus = processHistoryExclamations(cmd);
-                    switch (processHistoryStatus) {
-                        case 0:
-                            printPrompt();
-                            continue;
-                        case 1:
-                            printf("%s\n", cmd);
-                            break;
-                        default:
-                            break;
+                    if (stdinFromTerminal) {
+                        int processHistoryStatus = processHistoryExclamations(cmd);
+                        switch (processHistoryStatus) {
+                            case 0: //History event not found using !n or !-n
+                                printPrompt();
+                                continue;
+                            case 1: //History event found using !n or !-n
+                                printf("%s\n", cmd);
+                                break;
+                            default: //No history event specified using !n or !-n
+                                break;
+                        }
+                        addCommandToHistory(cmd);
                     }
-                    addCommandToHistory(cmd);
                     if (*cmd != COMMENT_CHAR) {
                         size_t exitCmdLen = strlen(EXIT_COMMAND);
                         if (strncmp(cmd, EXIT_COMMAND, exitCmdLen) == 0
