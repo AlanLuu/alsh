@@ -14,6 +14,7 @@
 #include "utils/ealloc.h"
 #include "utils/stringlinkedlist.h"
 
+#define BACKGROUND_CHAR '&'
 #define COMMAND_BUFFER_SIZE 4096
 #define COMMENT_CHAR '#'
 #define CWD_BUFFER_SIZE 4096
@@ -32,6 +33,8 @@
 
 static char cwd[CWD_BUFFER_SIZE]; //Current working directory
 static char *executablePath; //Path to where the current alsh shell executable is
+static bool isBackgroundCmd = false;
+static int numBackgroundCmds = 0;
 static struct passwd *pwd; //User info
 
 bool isInHomeDirectory(void) {
@@ -63,10 +66,36 @@ void clearHistoryElements(void) {
 }
 
 static bool sigintReceived = false;
+static bool sigchldReceived = false;
+static int numSigchldBackground = 0;
+void sigchldHandler(int sig) {
+    (void) sig;
+    if (sigintReceived) return;
+    sigchldReceived = true;
+    if (isBackgroundCmd) {
+        if (numBackgroundCmds > 0) {
+            numSigchldBackground++;
+            pid_t cid = wait(NULL);
+            fprintf(stderr, "\n[%d]+ Done with pid %d\n", numSigchldBackground, cid);
+            numBackgroundCmds--;
+        }
+        if (numBackgroundCmds == 0) {
+            isBackgroundCmd = false;
+            numSigchldBackground = 0;
+        }
+    }
+}
+
 void sigintHandler(int sig) {
     (void) sig;
     sigintReceived = true;
-    (void) wait(NULL);
+    if (numBackgroundCmds > 0) {
+        while (wait(NULL) > 0) {
+            numBackgroundCmds--;
+        }
+    } else {
+        (void) wait(NULL);
+    }
 }
 
 /**
@@ -74,7 +103,7 @@ void sigintHandler(int sig) {
 */
 void removeNewlineIfExists(char *str) {
     size_t len = strlen(str);
-    if (str[len - 1] == '\n') {
+    if (len > 0 && str[len - 1] == '\n') {
         str[len - 1] = '\0';
     }
 }
@@ -573,10 +602,17 @@ int executeCommand(char *cmd, bool waitForCommand) {
                 fprintf(stderr, "%s: %s: %s\n", SHELL_NAME, head->str, err);
                 exit(1);
             }
-            if (waitForCommand) {
+            if (waitForCommand && !isBackgroundCmd) {
                 int status;
-                while (wait(&status) > 0);
+                if (numBackgroundCmds > 0) {
+                    while (waitpid(cid, &status, 0) > 0);
+                } else {
+                    while (wait(&status) > 0);
+                }
                 exitStatus = (WIFEXITED(status)) ? (WEXITSTATUS(status)) : 1;
+            } else if (isBackgroundCmd) {
+                numBackgroundCmds++;
+                fprintf(stderr, "[%d] %d\n", numBackgroundCmds, cid);
             }
         } else {
             //Should not happen
@@ -1099,11 +1135,16 @@ int main(int argc, char *argv[]) {
                 fclose(historyfp);
             }
 
-            struct sigaction sa = {
+            struct sigaction sa1 = {
                 .sa_handler = sigintHandler
             };
-            sigemptyset(&sa.sa_mask);
-            sigaction(SIGINT, &sa, NULL);
+            struct sigaction sa2 = {
+                .sa_handler = sigchldHandler
+            };
+            sigemptyset(&sa1.sa_mask);
+            sigemptyset(&sa2.sa_mask);
+            sigaction(SIGINT, &sa1, NULL);
+            sigaction(SIGCHLD, &sa2, NULL);
 
             printIntro();
             printPrompt();
@@ -1114,10 +1155,12 @@ int main(int argc, char *argv[]) {
         bool typedExitCommand = false;
         do {
             sigintReceived = false;
+            sigchldReceived = false;
             while (fgets(cmd, COMMAND_BUFFER_SIZE, stdin) != NULL) {
                 removeNewlineIfExists(cmd);
                 bool trimSuccess = trimWhitespaceFromEnds(cmd);
                 if (*cmd && trimSuccess) {
+                    bool fgAfterBgCmd = true;
                     if (stdinFromTerminal) {
                         int processHistoryStatus = processHistoryExclamations(cmd);
                         switch (processHistoryStatus) {
@@ -1131,6 +1174,21 @@ int main(int argc, char *argv[]) {
                                 break;
                         }
                         addCommandToHistory(cmd);
+                        size_t cmdLen = strlen(cmd);
+                        bool runCmdInBackground = cmdLen > 1
+                            && cmd[cmdLen - 1] == BACKGROUND_CHAR
+                            && cmd[cmdLen - 2] != BACKGROUND_CHAR;
+                        if (runCmdInBackground) {
+                            if (!isBackgroundCmd) {
+                                isBackgroundCmd = true;
+                            } else {
+                                fgAfterBgCmd = false;
+                            }
+                            cmd[--cmdLen] = '\0';
+                            while (cmd[--cmdLen] == ' ') {
+                                cmd[cmdLen] = '\0';
+                            }
+                        }
                     }
                     if (*cmd != COMMENT_CHAR) {
                         size_t exitCmdLen = strlen(EXIT_COMMAND);
@@ -1140,7 +1198,19 @@ int main(int argc, char *argv[]) {
                             typedExitCommand = true;
                             break;
                         }
-                        processCommand(cmd);
+
+                        if (fgAfterBgCmd && numBackgroundCmds > 0) {
+                            //User runs foreground commands after background commands
+                            isBackgroundCmd = false;
+                            processCommand(cmd);
+                            isBackgroundCmd = true;
+                        } else {
+                            int cmdStatus = processCommand(cmd);
+                            if (cmdStatus == -1 && numBackgroundCmds == 0 && isBackgroundCmd) {
+                                //Syntax error with BACKGROUND_CHAR at end of command
+                                isBackgroundCmd = false;
+                            }
+                        }
                     }
                 }
                 if (stdinFromTerminal) {
@@ -1150,20 +1220,29 @@ int main(int argc, char *argv[]) {
                         sigintReceived = false;
                         printf("\n");
                     }
+                    if (sigchldReceived) {
+                        sigchldReceived = false;
+                    }
                     printPrompt();
                 }
             }
 
             //sigintReceived will be true if the user sends SIGINT
             //inside the shell prompt
-            if (sigintReceived) {
-                printf("\n");
+            if (sigintReceived || sigchldReceived) {
+                if (sigintReceived) printf("\n");
                 printPrompt();
             } else if (stdinFromTerminal) {
                 if (!typedExitCommand) printf("\n");
                 printf("%s\n", EXIT_COMMAND);
             }
-        } while (sigintReceived);
+        } while (sigintReceived || sigchldReceived);
+
+        //Kill any remaining background processes on shell exit
+        if (numBackgroundCmds > 0) {
+            signal(SIGTERM, SIG_IGN);
+            kill(0, SIGTERM);
+        }
 
         clearHistoryElements();
         free(history.elements);

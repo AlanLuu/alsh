@@ -7,6 +7,7 @@ A custom UNIX shell written in C
 - Execute commands with redirection `<` `>` `>>`
     - Output from a given file descriptor can be redirected or appended to a file by using `n>` or `n>>` respectively, where `n` is the file descriptor number
 - Execute commands with pipes `|`
+- Execute commands in the background by appending `&` at the end of the command
 - Execute multiple commands separated by `;` on the same line
     - Given the statement `cmd1; cmd2`, `cmd1` and `cmd2` are executed sequentially
 - Other operators
