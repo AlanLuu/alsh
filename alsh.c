@@ -31,10 +31,11 @@
 #define IS_LINUX false
 #endif
 
+static StringLinkedList *bgCmdDoneMessages; //Stores background command complete messages
 static char cwd[CWD_BUFFER_SIZE]; //Current working directory
 static char *executablePath; //Path to where the current alsh shell executable is
-static bool isBackgroundCmd = false;
-static int numBackgroundCmds = 0;
+static bool isBackgroundCmd = false; //Did the user run a command in the background?
+static int numBackgroundCmds = 0; //Number of background commands running
 static struct passwd *pwd; //User info
 
 bool isInHomeDirectory(void) {
@@ -65,6 +66,16 @@ void clearHistoryElements(void) {
     history.count = 0;
 }
 
+/**
+ * Returns the number of digits in a number
+*/
+int numDigits(long num) {
+    if (num < 0) num = -num;
+    int count;
+    for (count = 0; num > 0; count++, num /= 10);
+    return count;
+}
+
 static bool sigintReceived = false;
 static bool sigchldReceived = false;
 static int numSigchldBackground = 0;
@@ -76,7 +87,12 @@ void sigchldHandler(int sig) {
         if (numBackgroundCmds > 0) {
             numSigchldBackground++;
             pid_t cid = wait(NULL);
-            fprintf(stderr, "\n[%d]+ Done with pid %d\n", numSigchldBackground, cid);
+            size_t templateStrLen = strlen("[%d]+ Done with pid %d");
+            size_t numSigchldBackgroundLen = (size_t) numDigits(numSigchldBackground);
+            size_t cidLen = (size_t) numDigits(cid);
+            char *buffer = emalloc(sizeof(char*) * (templateStrLen + numSigchldBackgroundLen + cidLen));
+            sprintf(buffer, "[%d]+ Done with pid %d", numSigchldBackground, cid);
+            StringLinkedList_append(bgCmdDoneMessages, buffer, true);
             numBackgroundCmds--;
         }
         if (numBackgroundCmds == 0) {
@@ -95,6 +111,20 @@ void sigintHandler(int sig) {
         }
     } else {
         (void) wait(NULL);
+    }
+}
+
+/**
+ * If any background command complete message exists in bgCmdDoneMessages,
+ * print all of them to stderr and pop the nodes containing the messages
+ * This will also remove all nodes from bgCmdDoneMessages as a result
+*/
+void printBgCmdDoneMessageIfExists() {
+    if (bgCmdDoneMessages != NULL) {
+        while (bgCmdDoneMessages->head != NULL) {
+            fprintf(stderr, "%s\n", bgCmdDoneMessages->head->str);
+            StringLinkedList_removeIndexAndFreeNode(bgCmdDoneMessages, 0);
+        }
     }
 }
 
@@ -1157,6 +1187,7 @@ int main(int argc, char *argv[]) {
             sigintReceived = false;
             sigchldReceived = false;
             while (fgets(cmd, COMMAND_BUFFER_SIZE, stdin) != NULL) {
+                printBgCmdDoneMessageIfExists();
                 removeNewlineIfExists(cmd);
                 bool trimSuccess = trimWhitespaceFromEnds(cmd);
                 if (*cmd && trimSuccess) {
@@ -1184,6 +1215,13 @@ int main(int argc, char *argv[]) {
                             } else {
                                 fgAfterBgCmd = false;
                             }
+
+                            //Only initialize bgCmdDoneMessages when the user
+                            //executes a background command in a shell session
+                            if (bgCmdDoneMessages == NULL) {
+                                bgCmdDoneMessages = StringLinkedList_create();
+                            }
+                            
                             cmd[--cmdLen] = '\0';
                             while (cmd[--cmdLen] == ' ') {
                                 cmd[cmdLen] = '\0';
@@ -1230,8 +1268,11 @@ int main(int argc, char *argv[]) {
             //sigintReceived will be true if the user sends SIGINT
             //inside the shell prompt
             if (sigintReceived || sigchldReceived) {
-                if (sigintReceived) printf("\n");
-                printPrompt();
+                if (sigintReceived) {
+                    printf("\n");
+                    printBgCmdDoneMessageIfExists();
+                    printPrompt();
+                }
             } else if (stdinFromTerminal) {
                 if (!typedExitCommand) printf("\n");
                 printf("%s\n", EXIT_COMMAND);
@@ -1242,6 +1283,10 @@ int main(int argc, char *argv[]) {
         if (numBackgroundCmds > 0) {
             signal(SIGTERM, SIG_IGN);
             kill(0, SIGTERM);
+        }
+
+        if (bgCmdDoneMessages != NULL) {
+            StringLinkedList_free(bgCmdDoneMessages);
         }
 
         clearHistoryElements();
