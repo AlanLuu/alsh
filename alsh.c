@@ -90,7 +90,7 @@ void sigchldHandler(int sig) {
             size_t templateStrLen = strlen("[%d]+ Done with pid %d");
             size_t numSigchldBackgroundLen = (size_t) numDigits(numSigchldBackground);
             size_t cidLen = (size_t) numDigits(cid);
-            char *buffer = emalloc(sizeof(char*) * (templateStrLen + numSigchldBackgroundLen + cidLen));
+            char *buffer = emalloc(sizeof(char) * (templateStrLen + numSigchldBackgroundLen + cidLen));
             sprintf(buffer, "[%d]+ Done with pid %d", numSigchldBackground, cid);
             StringLinkedList_append(bgCmdDoneMessages, buffer, true);
             numBackgroundCmds--;
