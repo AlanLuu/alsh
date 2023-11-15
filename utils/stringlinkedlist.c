@@ -149,7 +149,7 @@ void StringLinkedList_removeValue(StringLinkedList *list, char *str) {
     if (strcmp(list->head->str, str) == 0) {
         StringLinkedList_removeIndexAndFreeNode(list, 0);
     } else {
-        StringNode *prev = NULL;
+        StringNode *prev = list->head;
         for (StringNode *temp = list->head->next; temp != NULL; temp = temp->next) {
             if (strcmp(temp->str, str) == 0) {
                 if (temp->next == NULL) {
