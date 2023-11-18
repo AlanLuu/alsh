@@ -12,6 +12,7 @@
 
 #include "utils/charlist.h"
 #include "utils/ealloc.h"
+#include "utils/stringhashmap.h"
 #include "utils/stringlinkedlist.h"
 
 #define BACKGROUND_CHAR '&'
@@ -31,6 +32,7 @@
 #define IS_LINUX false
 #endif
 
+static StringHashMap *aliases; //Stores command aliases
 static StringLinkedList *bgCmdDoneMessages; //Stores background command complete messages
 static char cwd[CWD_BUFFER_SIZE]; //Current working directory
 static char *executablePath; //Path to where the current alsh shell executable is
@@ -459,6 +461,51 @@ int executeCommand(char *cmd, bool waitForCommand) {
     }
 
     StringNode *head = tokens->head;
+    if (aliases != NULL && head != NULL) {
+        char *alias = StringHashMap_get(aliases, head->str);
+        if (alias != NULL) {
+            if (!*alias) {
+                if (*stdinStatus) {
+                    dup2(stdinStatus[1], STDIN_FILENO);
+                    close(stdinStatus[1]);
+                }
+                if (*stdoutStatus) {
+                    dup2(stdoutStatus[1], stdoutStatus[2]);
+                    close(stdoutStatus[1]);
+                }
+                free(stdinStatus);
+                free(stdoutStatus);
+                CharList_free(tempCmd);
+                StringLinkedList_free(tokens);
+                return 1;
+            }
+
+            if (strchr(alias, ' ') != NULL) { //Alias value has space
+                StringLinkedList *aliasTokens = split(alias, " ");
+                char **aliasTokensArr = StringLinkedList_toArray(aliasTokens);
+                StringLinkedList_removeIndexAndFreeNode(tokens, 0);
+                for (int i = StringLinkedList_size(aliasTokens) - 1; i >= 0; i--) {
+                    StringLinkedList_prepend(tokens, strdup(aliasTokensArr[i]), true);
+                }
+                free(aliasTokensArr);
+                StringLinkedList_free(aliasTokens);
+                head = tokens->head;
+            } else {
+                if (head->strMustBeFreed) {
+                    free(head->str);
+                }
+                head->str = alias;
+                bool *mustBeFreed = StringHashMap_getMustBeFreed(aliases, head->str);
+                if (mustBeFreed != NULL) {
+                    head->strMustBeFreed = mustBeFreed[1];
+                    free(mustBeFreed);
+                } else {
+                    //Shouldn't happen
+                    head->str = strdup(alias);
+                }
+            }
+        }
+    }
     bool isBuiltInCommand = false;
     char *colorAutoCmds[] = {"ls", "grep"};
     if (head == NULL || strcmp(head->str, "false") == 0) {
@@ -511,6 +558,47 @@ int executeCommand(char *cmd, bool waitForCommand) {
             }
             fprintf(stderr, "%s: cd: %s: %s\n", SHELL_NAME, arg, err);
             exitStatus = 1;
+        }
+    } else if (aliases != NULL && strcmp(head->str, "alias") == 0) {
+        isBuiltInCommand = true;
+        if (head->next == NULL) {
+            char ***keysVals = StringHashMap_entries(aliases);
+            int keysValsSize = StringHashMap_size(aliases);
+            for (int i = 0; i < keysValsSize; i++) {
+                printf("alias %s=\"%s\"\n", keysVals[i][0], keysVals[i][1]);
+                free(keysVals[i]);
+            }
+            free(keysVals);
+        }
+        for (StringNode *argNode = head->next; argNode != NULL; argNode = argNode->next) {
+            char *argStr = argNode->str;
+            char *equalsSign = strchr(argStr, '=');
+            if (equalsSign != NULL) {
+                if (argStr[0] == '=') {
+                    fprintf(stderr, "%s: alias: %s: not found\n", SHELL_NAME, argStr);
+                    exitStatus = 1;
+                    continue;
+                }
+                StringLinkedList *aliasList = split(argStr, "=");
+                char *aliasKey = aliasList->head->str;
+                char *aliasVal = aliasList->head->next->str;
+                char *aliasKeyDup = strdup(aliasKey);
+                char *aliasValDup = strdup(aliasVal);
+                bool replacingVal = StringHashMap_get(aliases, aliasKey) != NULL;
+                StringHashMap_put(aliases, aliasKeyDup, true, aliasValDup, true);
+                if (replacingVal) {
+                    free(aliasKeyDup);
+                }
+                StringLinkedList_free(aliasList);
+            } else {
+                char *value = StringHashMap_get(aliases, argStr);
+                if (value != NULL) {
+                    printf("alias %s=\"%s\"\n", argStr, value);
+                } else {
+                    fprintf(stderr, "%s: alias: %s: not found\n", SHELL_NAME, argStr);
+                    exitStatus = 1;
+                }
+            }
         }
     } else if (strcmp(head->str, "exec") == 0) {
         StringNode *argNode = head->next;
@@ -1140,6 +1228,7 @@ int main(int argc, char *argv[]) {
         }
         fclose(fp);
     } else {
+        aliases = StringHashMap_create();
         bool stdinFromTerminal = isatty(STDIN_FILENO);
         if (stdinFromTerminal) {
             history.capacity = STARTING_HISTORY_CAPACITY;
@@ -1291,6 +1380,7 @@ int main(int argc, char *argv[]) {
 
         clearHistoryElements();
         free(history.elements);
+        StringHashMap_free(aliases);
     }
     free(cmd);
     return 0;

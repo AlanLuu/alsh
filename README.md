@@ -18,6 +18,9 @@ A custom UNIX shell written in C
     - To execute the command `n` lines back in the history list, use `!-n` (e.g. `!-2` will execute the command 2 lines back in the history list)
     - To clear the history list, use `history -c`
     - To write the history list to a file, use `history -w`, which will write the list to `~/.alsh_history`
+- Create custom aliases for commands by using `alias alias_name=command`, where `alias_name` is the alias name and `command` is the command to execute when the alias is typed as a command
+    - Multiple aliases can be stored at once by using `alias alias_name_1=command_1 alias_name_2=command_2 alias_name_3=command_3 ...`
+    - To list all stored aliases for the current shell session, simply type `alias` without any arguments
 - Replace the current alsh shell's process with a new process by using `exec [command]`
     - Running `exec` without specifying a command will replace the current alsh shell's process with a new instance of another alsh shell
 - `repeat (n) <command>` will execute the given command `n` times
