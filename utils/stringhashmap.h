@@ -6,7 +6,7 @@
 typedef struct StringHashMap StringHashMap;
 
 StringHashMap* StringHashMap_createSize(int size);
-StringHashMap* StringHashMap_create();
+StringHashMap* StringHashMap_create(void);
 void StringHashMap_free(StringHashMap *map);
 
 char*** StringHashMap_entries(StringHashMap *map);

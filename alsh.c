@@ -121,7 +121,7 @@ void sigintHandler(int sig) {
  * print all of them to stderr and pop the nodes containing the messages
  * This will also remove all nodes from bgCmdDoneMessages as a result
 */
-void printBgCmdDoneMessageIfExists() {
+void printBgCmdDoneMessageIfExists(void) {
     if (bgCmdDoneMessages != NULL) {
         while (bgCmdDoneMessages->head != NULL) {
             fprintf(stderr, "%s\n", bgCmdDoneMessages->head->str);

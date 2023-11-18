@@ -41,7 +41,7 @@ StringHashMap* StringHashMap_createSize(int size) {
     return map;
 }
 
-StringHashMap* StringHashMap_create() {
+StringHashMap* StringHashMap_create(void) {
     return StringHashMap_createSize(DEFAULT_SIZE);
 }
 
