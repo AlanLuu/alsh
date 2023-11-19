@@ -150,17 +150,35 @@ StringLinkedList* split(char *str, char *delim) {
     CharList *strList = CharList_create();
     size_t delimLen = strlen(delim);
     char *tempStr = str;
-    bool inQuote = false;
+    bool inSingleQuote = false;
+    bool inDoubleQuote = false;
     while (*tempStr) {
-        if (*tempStr == '"') {
-            inQuote = !inQuote;
-        } else if (!inQuote && strstr(tempStr, delim) == tempStr) {
+        if (!inDoubleQuote && *tempStr == '\'') {
+            inSingleQuote = !inSingleQuote;
+        } else if (!inSingleQuote && *tempStr == '"') {
+            inDoubleQuote = !inDoubleQuote;
+        } else if (!inSingleQuote && !inDoubleQuote && strstr(tempStr, delim) == tempStr) {
             *tempStr = '\0';
             tempStr = str;
             while (*tempStr) {
-                if (*tempStr != '"') {
+                if (!inDoubleQuote && *tempStr == '\'') {
+                    inSingleQuote = !inSingleQuote;
+                } else if (!inSingleQuote && *tempStr == '"') {
+                    inDoubleQuote = !inDoubleQuote;
+                }
+
+                if (*tempStr == '"') {
+                    if (inSingleQuote) {
+                        CharList_add(strList, *tempStr);
+                    }
+                } else if (*tempStr == '\'') {
+                    if (inDoubleQuote) {
+                        CharList_add(strList, *tempStr);
+                    }
+                } else {
                     CharList_add(strList, *tempStr);
                 }
+
                 tempStr++;
             }
             char *strListCopy = CharList_toStr(strList);
@@ -179,7 +197,7 @@ StringLinkedList* split(char *str, char *delim) {
         tempStr++;
     }
 
-    if (inQuote) {
+    if (inSingleQuote || inDoubleQuote) {
         fprintf(stderr, "%s: Missing closing quote\n", SHELL_NAME);
         StringLinkedList_free(tokens);
         CharList_free(strList);
@@ -190,9 +208,24 @@ StringLinkedList* split(char *str, char *delim) {
 
     tempStr = str;
     while (*tempStr) {
-        if (*tempStr != '"') {
+        if (!inDoubleQuote && *tempStr == '\'') {
+            inSingleQuote = !inSingleQuote;
+        } else if (!inSingleQuote && *tempStr == '"') {
+            inDoubleQuote = !inDoubleQuote;
+        }
+
+        if (*tempStr == '"') {
+            if (inSingleQuote) {
+                CharList_add(strList, *tempStr);
+            }
+        } else if (*tempStr == '\'') {
+            if (inDoubleQuote) {
+                CharList_add(strList, *tempStr);
+            }
+        } else {
             CharList_add(strList, *tempStr);
         }
+        
         tempStr++;
     }
     char *strListCopy = CharList_toStr(strList);
@@ -565,7 +598,7 @@ int executeCommand(char *cmd, bool waitForCommand) {
             char ***keysVals = StringHashMap_entries(aliases);
             int keysValsSize = StringHashMap_size(aliases);
             for (int i = 0; i < keysValsSize; i++) {
-                printf("alias %s=\"%s\"\n", keysVals[i][0], keysVals[i][1]);
+                printf("alias %s='%s'\n", keysVals[i][0], keysVals[i][1]);
                 free(keysVals[i]);
             }
             free(keysVals);
@@ -593,7 +626,7 @@ int executeCommand(char *cmd, bool waitForCommand) {
             } else {
                 char *value = StringHashMap_get(aliases, argStr);
                 if (value != NULL) {
-                    printf("alias %s=\"%s\"\n", argStr, value);
+                    printf("alias %s='%s'\n", argStr, value);
                 } else {
                     fprintf(stderr, "%s: alias: %s: not found\n", SHELL_NAME, argStr);
                     exitStatus = 1;
