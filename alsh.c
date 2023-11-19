@@ -514,13 +514,15 @@ int executeCommand(char *cmd, bool waitForCommand) {
             }
 
             if (strchr(alias, ' ') != NULL) { //Alias value has space
-                StringLinkedList *aliasTokens = split(alias, " ");
+                char *aliasDup = strdup(alias);
+                StringLinkedList *aliasTokens = split(aliasDup, " ");
                 char **aliasTokensArr = StringLinkedList_toArray(aliasTokens);
                 StringLinkedList_removeIndexAndFreeNode(tokens, 0);
                 for (int i = StringLinkedList_size(aliasTokens) - 1; i >= 0; i--) {
                     StringLinkedList_prepend(tokens, strdup(aliasTokensArr[i]), true);
                 }
                 free(aliasTokensArr);
+                free(aliasDup);
                 StringLinkedList_free(aliasTokens);
                 head = tokens->head;
             } else {
