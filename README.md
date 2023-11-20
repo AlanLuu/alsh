@@ -46,5 +46,15 @@ To uninstall alsh, run the following command in the alsh directory:
 sudo make uninstall
 ```
 
+# Testing
+Test cases are defined in `tests.json`.
+- Cases are defined in the format `"test_command": "output"|null`, where `test_command` is the command to be tested and `output` is the expected output of the command.
+    - If `null` is specified in place of `output`, then the test command will be executed using the system shell and the output of that will be used as the expected output.
+
+To run tests, run the following command (requires Python):
+```
+make test
+```
+
 # License
 alsh is distributed under the terms of the [MIT License](https://github.com/AlanLuu/alsh/blob/main/LICENSE).
