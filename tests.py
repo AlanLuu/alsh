@@ -73,7 +73,7 @@ def main():
         ).stdout.decode() if val is None else val
 
         test_output = subprocess.run(
-            f"echo '{key}' | {alsh_path}",
+            f"echo '{key}' | ./{alsh_path}",
             shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT
