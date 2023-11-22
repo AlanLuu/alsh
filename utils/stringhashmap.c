@@ -154,6 +154,7 @@ void StringHashMap_put(StringHashMap *map,
                 }
                 temp->value = value;
                 temp->valueMustBeFreed = valueMustBeFreed;
+                break;
             }
         }
     } else {
