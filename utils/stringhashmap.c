@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define DEFAULT_SIZE 1000
+#define DEFAULT_STRINGHASHMAP_SIZE 1000
 
 typedef struct StringHashMapNode {
     char *key;
@@ -42,7 +42,7 @@ StringHashMap* StringHashMap_createSize(int size) {
 }
 
 StringHashMap* StringHashMap_create(void) {
-    return StringHashMap_createSize(DEFAULT_SIZE);
+    return StringHashMap_createSize(DEFAULT_STRINGHASHMAP_SIZE);
 }
 
 void StringHashMap_free(StringHashMap *map) {

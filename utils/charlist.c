@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define DEFAULT_CAPACITY 10
+#define DEFAULT_CHARLIST_CAPACITY 10
 
 void CharList_resize(CharList *list) {
     int oldCapacity = list->capacity;
@@ -25,7 +25,7 @@ CharList* CharList_createCapacity(int capacity) {
 }
 
 CharList* CharList_create(void) {
-    return CharList_createCapacity(DEFAULT_CAPACITY);
+    return CharList_createCapacity(DEFAULT_CHARLIST_CAPACITY);
 }
 
 void CharList_free(CharList *list) {
