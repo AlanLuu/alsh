@@ -152,31 +152,61 @@ StringLinkedList* split(char *str, char *delim) {
     char *tempStr = str;
     bool inSingleQuote = false;
     bool inDoubleQuote = false;
+    int parenthesesNestLevel = 0;
     while (*tempStr) {
-        if (!inDoubleQuote && *tempStr == '\'') {
+        if (!inDoubleQuote && parenthesesNestLevel == 0 && *tempStr == '\'') {
             inSingleQuote = !inSingleQuote;
-        } else if (!inSingleQuote && *tempStr == '"') {
+        } else if (!inSingleQuote && parenthesesNestLevel == 0 && *tempStr == '"') {
             inDoubleQuote = !inDoubleQuote;
-        } else if (!inSingleQuote && !inDoubleQuote && strstr(tempStr, delim) == tempStr) {
+        } else if (!inDoubleQuote && !inSingleQuote && (*tempStr == '(' || *tempStr == ')')) {
+            parenthesesNestLevel += *tempStr == '(' ? 1 : -1;
+            if (parenthesesNestLevel < 0) {
+                fprintf(stderr, "%s: Unexpected closing parentheses\n", SHELL_NAME);
+                StringLinkedList_free(tokens);
+                CharList_free(strList);
+                
+                StringLinkedList *emptyTokens = StringLinkedList_create();
+                return emptyTokens;
+            }
+        } else if (
+            !inSingleQuote &&
+            !inDoubleQuote &&
+            parenthesesNestLevel == 0 &&
+            strstr(tempStr, delim) == tempStr
+        ) {
             *tempStr = '\0';
             tempStr = str;
             while (*tempStr) {
-                if (!inDoubleQuote && *tempStr == '\'') {
+                if (!inDoubleQuote && parenthesesNestLevel == 0 && *tempStr == '\'') {
                     inSingleQuote = !inSingleQuote;
-                } else if (!inSingleQuote && *tempStr == '"') {
+                } else if (!inSingleQuote && parenthesesNestLevel == 0 && *tempStr == '"') {
                     inDoubleQuote = !inDoubleQuote;
+                } else if (!inDoubleQuote && !inSingleQuote && (*tempStr == '(' || *tempStr == ')')) {
+                    parenthesesNestLevel += *tempStr == '(' ? 1 : -1;
+                    if (parenthesesNestLevel < 0) {
+                        fprintf(stderr, "%s: Unexpected closing parentheses\n", SHELL_NAME);
+                        StringLinkedList_free(tokens);
+                        CharList_free(strList);
+                        
+                        StringLinkedList *emptyTokens = StringLinkedList_create();
+                        return emptyTokens;
+                    }
                 }
 
-                if (*tempStr == '"') {
-                    if (inSingleQuote) {
+                switch (*tempStr) {
+                    case '"':
+                        if (inSingleQuote || parenthesesNestLevel > 0) {
+                            CharList_add(strList, *tempStr);
+                        }
+                        break;
+                    case '\'':
+                        if (inDoubleQuote || parenthesesNestLevel > 0) {
+                            CharList_add(strList, *tempStr);
+                        }
+                        break;
+                    default:
                         CharList_add(strList, *tempStr);
-                    }
-                } else if (*tempStr == '\'') {
-                    if (inDoubleQuote) {
-                        CharList_add(strList, *tempStr);
-                    }
-                } else {
-                    CharList_add(strList, *tempStr);
+                        break;
                 }
 
                 tempStr++;
@@ -197,8 +227,14 @@ StringLinkedList* split(char *str, char *delim) {
         tempStr++;
     }
 
-    if (inSingleQuote || inDoubleQuote) {
-        fprintf(stderr, "%s: Missing closing quote\n", SHELL_NAME);
+    if (inSingleQuote || inDoubleQuote || parenthesesNestLevel != 0) {
+        if (parenthesesNestLevel > 0) {
+            fprintf(stderr, "%s: Missing closing parentheses\n", SHELL_NAME);
+        } else if (parenthesesNestLevel < 0) {
+            fprintf(stderr, "%s: Unexpected closing parentheses\n", SHELL_NAME);
+        } else {
+            fprintf(stderr, "%s: Missing closing quote\n", SHELL_NAME);
+        }
         StringLinkedList_free(tokens);
         CharList_free(strList);
         
@@ -208,26 +244,41 @@ StringLinkedList* split(char *str, char *delim) {
 
     tempStr = str;
     while (*tempStr) {
-        if (!inDoubleQuote && *tempStr == '\'') {
+        if (!inDoubleQuote && parenthesesNestLevel == 0 && *tempStr == '\'') {
             inSingleQuote = !inSingleQuote;
-        } else if (!inSingleQuote && *tempStr == '"') {
+        } else if (!inSingleQuote && parenthesesNestLevel == 0 && *tempStr == '"') {
             inDoubleQuote = !inDoubleQuote;
+        } else if (!inDoubleQuote && !inSingleQuote && (*tempStr == '(' || *tempStr == ')')) {
+            parenthesesNestLevel += *tempStr == '(' ? 1 : -1;
+            if (parenthesesNestLevel < 0) {
+                fprintf(stderr, "%s: Unexpected closing parentheses\n", SHELL_NAME);
+                StringLinkedList_free(tokens);
+                CharList_free(strList);
+                
+                StringLinkedList *emptyTokens = StringLinkedList_create();
+                return emptyTokens;
+            }
         }
 
-        if (*tempStr == '"') {
-            if (inSingleQuote) {
+        switch (*tempStr) {
+            case '"':
+                if (inSingleQuote || parenthesesNestLevel > 0) {
+                    CharList_add(strList, *tempStr);
+                }
+                break;
+            case '\'':
+                if (inDoubleQuote || parenthesesNestLevel > 0) {
+                    CharList_add(strList, *tempStr);
+                }
+                break;
+            default:
                 CharList_add(strList, *tempStr);
-            }
-        } else if (*tempStr == '\'') {
-            if (inDoubleQuote) {
-                CharList_add(strList, *tempStr);
-            }
-        } else {
-            CharList_add(strList, *tempStr);
+                break;
         }
         
         tempStr++;
     }
+    
     char *strListCopy = CharList_toStr(strList);
     StringLinkedList_append(tokens, strListCopy, true);
     CharList_free(strList);
