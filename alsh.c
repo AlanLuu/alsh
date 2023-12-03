@@ -338,9 +338,37 @@ bool trimWhitespaceFromEnds(char *str) {
 }
 
 int* handleRedirectStdout(char *cmd) {
-    char *stdoutRedirectChr = strchr(cmd, '>');
+    char *stdoutRedirectChr = NULL;
     int *status;
-    if (stdoutRedirectChr != NULL) {
+    if (strchr(cmd, '>') != NULL) {
+        bool inSingleQuote = false;
+        bool inDoubleQuote = false;
+        bool inParentheses = false;
+        for (char *cmdPtr = cmd; *cmdPtr; cmdPtr++) {
+            if (*cmdPtr == '\'') {
+                if (!inDoubleQuote && !inParentheses) {
+                    inSingleQuote = !inSingleQuote;
+                }
+            } else if (*cmdPtr == '"') {
+                if (!inSingleQuote && !inParentheses) {
+                    inDoubleQuote = !inDoubleQuote;
+                }
+            } else if (*cmdPtr == '(' || *cmdPtr == ')') {
+                if (!inSingleQuote && !inDoubleQuote) {
+                    inParentheses = *cmdPtr == '(';
+                }
+            }
+
+            if (*cmdPtr == '>' && !inSingleQuote && !inDoubleQuote && !inParentheses) {
+                stdoutRedirectChr = cmdPtr;
+                break;
+            }
+        }
+        if (stdoutRedirectChr == NULL) {
+            status = ecalloc(1, sizeof(int));
+            return status;
+        }
+
         char *fileName = stdoutRedirectChr + 1;
         const char *fopenMode = "w";
         while (*fileName == ' ' || *fileName == '>') {
@@ -392,9 +420,37 @@ int* handleRedirectStdout(char *cmd) {
 }
 
 int* handleRedirectStdin(char *cmd) {
-    char *stdinRedirectChr = strchr(cmd, '<');
+    char *stdinRedirectChr = NULL;
     int *status;
-    if (stdinRedirectChr != NULL) {
+    if (strchr(cmd, '<') != NULL) {
+        bool inSingleQuote = false;
+        bool inDoubleQuote = false;
+        bool inParentheses = false;
+        for (char *cmdPtr = cmd; *cmdPtr; cmdPtr++) {
+            if (*cmdPtr == '\'') {
+                if (!inDoubleQuote && !inParentheses) {
+                    inSingleQuote = !inSingleQuote;
+                }
+            } else if (*cmdPtr == '"') {
+                if (!inSingleQuote && !inParentheses) {
+                    inDoubleQuote = !inDoubleQuote;
+                }
+            } else if (*cmdPtr == '(' || *cmdPtr == ')') {
+                if (!inSingleQuote && !inDoubleQuote) {
+                    inParentheses = *cmdPtr == '(';
+                }
+            }
+
+            if (*cmdPtr == '<' && !inSingleQuote && !inDoubleQuote && !inParentheses) {
+                stdinRedirectChr = cmdPtr;
+                break;
+            }
+        }
+        if (stdinRedirectChr == NULL) {
+            status = ecalloc(1, sizeof(int));
+            return status;
+        }
+
         char *tempCmd = strdup(cmd);
 
         char *fileName = strchr(tempCmd, '<') + 1;
