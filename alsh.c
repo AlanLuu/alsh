@@ -12,6 +12,7 @@
 
 #include "utils/charlist.h"
 #include "utils/ealloc.h"
+#include "utils/mathparser.h"
 #include "utils/stringhashmap.h"
 #include "utils/stringlinkedlist.h"
 
@@ -538,6 +539,79 @@ int executeCommand(char *cmd, bool waitForCommand) {
                 StringLinkedList_removeIndexAndFreeNode(tokens, tempNodeIndex);
             }
             StringLinkedList_removeIndexAndFreeNode(tokens, tempNodeIndex);
+        } else if (strchr(strToRemove, '(') != NULL && temp->strMustBeFreed) {
+            CharList *finalStrList = CharList_create();
+            CharList *exprList = CharList_create();
+            bool seenOtherChr = false;
+            char *strToRemovePtr = strToRemove;
+            while (*strToRemovePtr) {
+                if (*strToRemovePtr == '(') {
+                    int nestLevel = 1;
+                    while (*++strToRemovePtr) {
+                        if (*strToRemovePtr == '(') {
+                            nestLevel++;
+                        } else if (*strToRemovePtr == ')') {
+                            nestLevel--;
+                        }
+                        if (nestLevel <= 0) break;
+                        CharList_add(exprList, *strToRemovePtr);
+                    }
+                    char *expr = CharList_toStr(exprList);
+                    trimWhitespaceFromEnds(expr);
+                    int parseStatus;
+                    double result = MathParser_parse(expr, &parseStatus);
+                    free(expr);
+                    if (parseStatus != MATH_PARSER_OK) {
+                        switch (parseStatus) {
+                            case MATH_PARSER_DIVIDE_ZERO:
+                                fprintf(stderr, "%s: Divison by 0 error\n", SHELL_NAME);
+                                break;
+                            case MATH_PARSER_UNEXPECTED_CHAR:
+                                fprintf(stderr, "%s: Unexpected non-digit/non-decimal characters in math expression\n", SHELL_NAME);
+                                break;
+                            case MATH_PARSER_PARSE_ERROR:
+                                fprintf(stderr, "%s: Math expression parse error\n", SHELL_NAME);
+                                break;
+                        }
+                        if (*stdinStatus) {
+                            dup2(stdinStatus[1], STDIN_FILENO);
+                            close(stdinStatus[1]);
+                        }
+                        if (*stdoutStatus) {
+                            dup2(stdoutStatus[1], stdoutStatus[2]);
+                            close(stdoutStatus[1]);
+                        }
+                        free(stdinStatus);
+                        free(stdoutStatus);
+                        CharList_free(tempCmd);
+                        StringLinkedList_free(tokens);
+                        CharList_free(finalStrList);
+                        CharList_free(exprList);
+                        return 1;
+                    }
+                    char *newStr = emalloc(sizeof(char) * 100);
+                    sprintf(newStr, "%g", result);
+                    CharList_addStr(finalStrList, newStr);
+                    free(newStr);
+                    CharList_clear(exprList);
+                } else {
+                    if (!seenOtherChr && !isdigit(*strToRemovePtr)) {
+                        seenOtherChr = true;
+                    }
+                    CharList_add(finalStrList, *strToRemovePtr);
+                }
+                strToRemovePtr++;
+            }
+            char *finalStr = CharList_toStr(finalStrList);
+            CharList_free(finalStrList);
+            CharList_free(exprList);
+            free(temp->str);
+            temp->str = finalStr;
+            temp = temp->next;
+            if (temp == NULL && tempNodeIndex == 0 && !seenOtherChr) {
+                StringLinkedList_prepend(tokens, "echo", false);
+            }
+            tempNodeIndex++;
         } else {
             temp = temp->next;
             tempNodeIndex++;

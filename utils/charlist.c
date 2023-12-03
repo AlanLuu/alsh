@@ -84,6 +84,10 @@ bool CharList_contains(CharList *list, char value) {
     return CharList_indexOf(list, value) >= 0;
 }
 
+char CharList_peek(CharList *list) {
+    return CharList_get(list, list->size - 1);
+}
+
 char CharList_removeIndex(CharList *list, int index) {
     if (index < 0 || index >= list->size) {
         return 0;
@@ -103,6 +107,10 @@ void CharList_removeValue(CharList *list, char value) {
     if (index != -1) {
         CharList_removeIndex(list, index);
     }
+}
+
+char CharList_pop(CharList *list) {
+    return CharList_removeIndex(list, list->size - 1);
 }
 
 char* CharList_toStr(CharList *list) {

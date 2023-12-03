@@ -10,6 +10,8 @@ A custom UNIX shell written in C
 - Execute commands in the background by appending `&` at the end of the command
 - Execute multiple commands separated by `;` on the same line
     - Given the statement `cmd1; cmd2`, `cmd1` and `cmd2` are executed sequentially
+- Evaluate math expressions by surrounding them with `()`, such as `(1 + 1)` and `(1 + 2 * (3 + 4))`
+    - Supports `+`, `-`, `*`, `/`, and grouping expressions using `(` and `)`
 - Other operators
     - `&&`: Given the statement `cmd1 && cmd2`, `cmd2` is executed if and only if `cmd1` returns an exit status of 0, which indicates success
     - `||`: Given the statement `cmd1 || cmd2`, `cmd2` is executed if and only if `cmd1` returns a non-zero exit status, which indicates failure

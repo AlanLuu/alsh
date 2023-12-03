@@ -20,8 +20,10 @@ void CharList_clear(CharList *list);
 char CharList_get(CharList *list, int index);
 int CharList_indexOf(CharList *list, char value);
 bool CharList_contains(CharList *list, char value);
+char CharList_peek(CharList *list);
 char CharList_removeIndex(CharList *list, int index);
 void CharList_removeValue(CharList *list, char value);
+char CharList_pop(CharList *list);
 char* CharList_toStr(CharList *list);
 
 #endif // ALSH_CHAR_LIST_

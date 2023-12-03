@@ -16,5 +16,17 @@
     "if (true) if (true) echo 1 else echo 2 else echo 3": "1\n",
     "if (true) if (false) echo 1 else echo 2 else echo 3": "2\n",
     "if (false) if (false) echo 1 else echo 2": "2\n",
+    "echo (1)": "1\n",
+    "echo (1 + 1)": "2\n",
+    "echo (1 + 2 * 3 + 4)": "11\n",
+    "echo ((1 + 2) * (3 + 4))": "21\n",
+    "echo (1 + 2 * (3 + 4))": "15\n",
+    "echo ((1 + 2) * 3 + 4)": "13\n",
+    "echo (0.1 + 0.2)": "0.3\n",
+    "echo (1 / 2 * 2)": "1\n",
+    "echo (1 / (2 * 2))": "0.25\n",
+    "echo (1+1),(2+2), (3+3)": "2,4, 6\n",
+    "echo (1 / (2 * 2)) > result.txt && echo (1+1) >> result.txt && cat result.txt && rm result.txt": "0.25\n2\n",
+    "(1 + 2 * 3 + 4)": "11\n",
     "": ""
 }
