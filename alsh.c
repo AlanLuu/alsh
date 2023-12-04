@@ -521,12 +521,40 @@ int executeCommand(char *cmd, bool waitForCommand) {
     
     int exitStatus = 0;
     CharList *tempCmd = CharList_create();
+    bool inSingleQuote = false;
+    bool inDoubleQuote = false;
+    bool inParentheses = false;
     char *cmdPtr = cmd;
     int cmdIndex = 0;
     while (*cmdPtr) {
         switch (*cmdPtr) {
+            case '\'': {
+                if (!inDoubleQuote && !inParentheses) {
+                    inSingleQuote = !inSingleQuote;
+                }
+                break;
+            }
+            case '"': {
+                if (!inSingleQuote && !inParentheses) {
+                    inDoubleQuote = !inDoubleQuote;
+                }
+                break;
+            }
+            case '(':
+            case ')': {
+                if (!inSingleQuote && !inDoubleQuote) {
+                    inParentheses = !inParentheses;
+                }
+                break;
+            }
+        }
+        switch (*cmdPtr) {
             case '<':
             case '>': {
+                if (inSingleQuote || inDoubleQuote || inParentheses) {
+                    CharList_add(tempCmd, *cmdPtr++);
+                    break;
+                }
                 char *cmdPtrLeft = cmdPtr - 1;
                 char *cmdPtrRight = cmdPtr + 1;
                 bool noSpaceOnLeft = *cmdPtrLeft != ' ' && *cmdPtrLeft != '>';
