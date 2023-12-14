@@ -3,6 +3,9 @@
 
 #include <stdbool.h>
 
+#define EPSILON 0.00001
+double fabs(double d);
+
 typedef struct DoubleList {
     double *data;
     int size;

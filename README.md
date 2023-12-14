@@ -33,6 +33,8 @@ A custom UNIX shell written in C
     - The command to test can be negated by using the `-` operator (e.g. `if (-<commandToTest>) <command>` will only execute the given command if `commandToTest` returns a non-zero exit status, which indicates failure)
         - Negated commands can also be negated themselves, so `if (--<commandToTest>) <command>` is equivalent to `if (<commandToTest>) <command>`
         - An odd number of `-` operators will negate the command, and an even number of `-` operators will not negate the command
+- Compare numerical values by using `chk <num1> <cond> <num2>`, where `num1` and `num2` are the first and second numerical values to compare respectively, and `cond` is the test condition to use on `num1` and `num2`
+    - Valid test conditions for `cond` are the following: `eq`, `ne`, `lt`, `le`, `gt`, `ge`, which stand for equals, not equals, less than, less than or equal to, greater than, and greater than or equal to respectively
 
 # Installation
 ```

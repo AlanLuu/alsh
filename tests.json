@@ -5,6 +5,7 @@
     "'pwd'": null,
     "echo hi > hi.txt && cat < hi.txt | wc -l | sha256sum > checksum.txt && cat checksum.txt && rm checksum.txt hi.txt": null,
     "false || echo hello && pwd && false || ls | wc -l && false || whoami && echo bye": null,
+    "sudo 2> sudo.txt || cat sudo.txt > sudo2.txt && cat sudo2.txt && rm sudo.txt sudo2.txt": null,
     "echo hello": "hello\n",
     "echo -n hello": "hello",
     "echo \"hello\"": "hello\n",
@@ -28,5 +29,12 @@
     "echo (1+1),(2+2), (3+3)": "2,4, 6\n",
     "echo (1 / (2 * 2)) > result.txt && echo (1+1) >> result.txt && cat result.txt && rm result.txt": "0.25\n2\n",
     "(1 + 2 * 3 + 4)": "11\n",
+    "chk 1 eq 1 && echo hi": "hi\n",
+    "chk 1 eq 2 || echo hi": "hi\n",
+    "chk 1 ne 2 && echo hi": "hi\n",
+    "chk 1 ne 1 || echo hi": "hi\n",
+    "chk ((1 + 2) * (3 + 4)) eq 21 && echo hi": "hi\n",
+    "if (chk 1 eq 1) echo hi else echo bye": "hi\n",
+    "if (chk 1 eq 2) echo hi else echo bye": "bye\n",
     "": ""
 }

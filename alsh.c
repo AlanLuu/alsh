@@ -11,6 +11,7 @@
 #include <unistd.h>
 
 #include "utils/charlist.h"
+#include "utils/doublelist.h"
 #include "utils/ealloc.h"
 #include "utils/mathparser.h"
 #include "utils/stringhashmap.h"
@@ -25,6 +26,7 @@
 #define HISTORY_FILE_NAME ".alsh_history"
 #define SHELL_NAME "alsh"
 #define STARTING_HISTORY_CAPACITY 25
+#define TEST_COMMAND "chk"
 #define USERNAME_MAX_LENGTH 32
 
 #ifdef __linux__
@@ -801,6 +803,111 @@ int executeCommand(char *cmd, bool waitForCommand) {
                     break;
             }
             fprintf(stderr, "%s: cd: %s: %s\n", SHELL_NAME, arg, err);
+            exitStatus = 1;
+        }
+    } else if (strcmp(head->str, TEST_COMMAND) == 0) {
+        isBuiltInCommand = true;
+
+        double first = 0;
+        char *testCond = NULL;
+        double second = 0;
+
+        char *validTestOps[] = {"eq", "ne", "lt", "le", "gt", "ge"};
+        size_t validTestOpsLen = sizeof(validTestOps) / sizeof(*validTestOps);
+
+        StringNode *nextNode = head->next;
+        bool testError = false;
+        const int numArgs = 3;
+        for (int i = 0; i < numArgs; i++) {
+            char *errorStr = NULL;
+            switch (i) {
+                case 0: {
+                    if (nextNode == NULL) {
+                        fprintf(stderr, "%s: %s: Missing first value\n", SHELL_NAME, TEST_COMMAND);
+                        testError = true;
+                        break;
+                    }
+                    first = strtod(nextNode->str, &errorStr);
+                    if (*errorStr) {
+                        fprintf(stderr, "%s: %s: First value is not a number\n", SHELL_NAME, TEST_COMMAND);
+                        testError = true;
+                        break;
+                    }
+                    break;
+                }
+                case 1: {
+                    if (nextNode == NULL) {
+                        fprintf(stderr, "%s: %s: Missing test condition. ", SHELL_NAME, TEST_COMMAND);
+                        fprintf(stderr, "Valid conditions include: ");
+                        for (size_t j = 0; j < validTestOpsLen; j++) {
+                            fprintf(stderr, "%s", validTestOps[j]);
+                            if (j < validTestOpsLen - 1) {
+                                fprintf(stderr, ", ");
+                            }
+                        }
+                        fprintf(stderr, "\n");
+                        testError = true;
+                        break;
+                    }
+                    testCond = nextNode->str;
+                    if (!strArrContains(validTestOps, testCond + (*testCond == '-'), validTestOpsLen)) {
+                        fprintf(stderr, "%s: %s: Invalid test condition. ", SHELL_NAME, TEST_COMMAND);
+                        fprintf(stderr, "Valid conditions include: ");
+                        for (size_t j = 0; j < validTestOpsLen; j++) {
+                            fprintf(stderr, "%s", validTestOps[j]);
+                            if (j < validTestOpsLen - 1) {
+                                fprintf(stderr, ", ");
+                            }
+                        }
+                        fprintf(stderr, "\n");
+                        testError = true;
+                        break;
+                    }
+                    break;
+                }
+                case 2: {
+                    if (nextNode == NULL) {
+                        fprintf(stderr, "%s: %s: Missing second value\n", SHELL_NAME, TEST_COMMAND);
+                        testError = true;
+                        break;
+                    }
+                    second = strtod(nextNode->str, &errorStr);
+                    if (*errorStr) {
+                        fprintf(stderr, "%s: %s: Second value is not a number\n", SHELL_NAME, TEST_COMMAND);
+                        testError = true;
+                        break;
+                    }
+                    break;
+                }
+            }
+            if (testError) break;
+            nextNode = nextNode->next;
+        }
+
+        if (!testError) {
+            bool containsDash = false;
+            if (*testCond == '-') {
+                containsDash = true;
+                testCond++;
+            }
+
+            //0 denotes success, 1 denotes failure
+            if (strcmp(testCond, validTestOps[0]) == 0) {
+                exitStatus = !(fabs(first - second) < EPSILON);
+            } else if (strcmp(testCond, validTestOps[1]) == 0) {
+                exitStatus = !(fabs(first - second) >= EPSILON);
+            } else if (strcmp(testCond, validTestOps[2]) == 0) {
+                exitStatus = !(first < second);
+            } else if (strcmp(testCond, validTestOps[3]) == 0) {
+                exitStatus = !(first <= second);
+            } else if (strcmp(testCond, validTestOps[4]) == 0) {
+                exitStatus = !(first > second);
+            } else {
+                exitStatus = !(first >= second);
+            }
+
+            if (containsDash) testCond--;
+        } else {
             exitStatus = 1;
         }
     } else if (aliases != NULL && strcmp(head->str, "alias") == 0) {

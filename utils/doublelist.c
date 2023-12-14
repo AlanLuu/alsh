@@ -5,7 +5,6 @@
 #include <string.h>
 
 #define DEFAULT_DOUBLELIST_CAPACITY 10
-#define EPSILON 0.00001
 
 void DoubleList_resize(DoubleList *list) {
     int oldCapacity = list->capacity;
