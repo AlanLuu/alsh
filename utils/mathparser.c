@@ -4,11 +4,24 @@
 #include <ctype.h>
 #include "doublelist.h"
 #include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
-bool isAnyOperator(char c) {
+#define MATH_PARSER_OK 0
+#define MATH_PARSER_DIVIDE_ZERO 1
+#define MATH_PARSER_UNEXPECTED_CHAR 2
+#define MATH_PARSER_PARSE_ERROR 3
+
+bool MathParser_isAnyOperator(char c) {
     return c == '+' || c == '-' || c == '*' || c == '/';
+}
+
+bool MathParser_containsOperator(char *str) {
+    char *strPtr = str;
+    while (*strPtr) {
+        if (MathParser_isAnyOperator(*strPtr++)) return true;
+    }
+    return false;
 }
 
 double parsePostfixExpr(char *postfixExpr, int *status) {
@@ -43,7 +56,7 @@ double parsePostfixExpr(char *postfixExpr, int *status) {
             do {
                 postfixExprPtr++;
             } while (*postfixExprPtr == ' ');
-        } else if (isAnyOperator(token)) {
+        } else if (MathParser_isAnyOperator(token)) {
             double second = DoubleList_pop(output);
             if (output->size <= 0) {
                 *status = MATH_PARSER_PARSE_ERROR;
@@ -106,7 +119,7 @@ char* infixToPostfix(char *infixExpr) {
             case '-': {
                 CharList_add(output, ' ');
                 char value = CharList_peek(stack);
-                while (isAnyOperator(value)) {
+                while (MathParser_isAnyOperator(value)) {
                     CharList_pop(stack);
                     CharList_add(output, value);
                     CharList_add(output, ' ');
@@ -161,6 +174,24 @@ char* infixToPostfix(char *infixExpr) {
     CharList_free(output);
     CharList_free(stack);
     return result;
+}
+
+bool MathParser_printErrMsg(int parseStatus, char *shellName) {
+    if (parseStatus != MATH_PARSER_OK) {
+        switch (parseStatus) {
+            case MATH_PARSER_DIVIDE_ZERO:
+                fprintf(stderr, "%s: Divison by 0 error\n", shellName);
+                break;
+            case MATH_PARSER_UNEXPECTED_CHAR:
+                fprintf(stderr, "%s: Unexpected non-digit/non-decimal characters in math expression\n", shellName);
+                break;
+            case MATH_PARSER_PARSE_ERROR:
+                fprintf(stderr, "%s: Math expression parse error\n", shellName);
+                break;
+        }
+        return true;
+    }
+    return false;
 }
 
 double MathParser_parse(char *expression, int *parseStatus) {

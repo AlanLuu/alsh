@@ -12,6 +12,8 @@
     "echo 'hello'": "hello\n",
     "echo \"": "alsh: Missing closing quote\n",
     "repeat(5) echo \"loop\"": "loop\nloop\nloop\nloop\nloop\n",
+    "repeat(1 + 1 + 1 + 1 + 1) echo \"loop\"": "loop\nloop\nloop\nloop\nloop\n",
+    "repeat(1 + 1 + 1 + 1 + 0.999) echo \"loop\"": "loop\nloop\nloop\nloop\n",
     "if (false) echo 1 else if (true) echo 2 else echo 3": "2\n",
     "if (false) if (true) echo 1 else echo 2 else echo 3": "3\n",
     "if (true) if (true) echo 1 else echo 2 else echo 3": "1\n",

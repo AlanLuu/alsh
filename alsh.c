@@ -29,6 +29,8 @@
 #define TEST_COMMAND "chk"
 #define USERNAME_MAX_LENGTH 32
 
+#define MATH_PARSER_ERR_MSG(status) MathParser_printErrMsg(status, SHELL_NAME)
+
 #ifdef __linux__
 #define IS_LINUX true
 #else
@@ -647,18 +649,7 @@ int executeCommand(char *cmd, bool waitForCommand) {
                     int parseStatus;
                     double result = MathParser_parse(expr, &parseStatus);
                     free(expr);
-                    if (parseStatus != MATH_PARSER_OK) {
-                        switch (parseStatus) {
-                            case MATH_PARSER_DIVIDE_ZERO:
-                                fprintf(stderr, "%s: Divison by 0 error\n", SHELL_NAME);
-                                break;
-                            case MATH_PARSER_UNEXPECTED_CHAR:
-                                fprintf(stderr, "%s: Unexpected non-digit/non-decimal characters in math expression\n", SHELL_NAME);
-                                break;
-                            case MATH_PARSER_PARSE_ERROR:
-                                fprintf(stderr, "%s: Math expression parse error\n", SHELL_NAME);
-                                break;
-                        }
+                    if (MATH_PARSER_ERR_MSG(parseStatus)) {
                         if (*stdinStatus) {
                             dup2(stdinStatus[1], STDIN_FILENO);
                             close(stdinStatus[1]);
@@ -1373,7 +1364,8 @@ int processCommand(char *cmd) {
         do {
             counter++;
         } while (*counter == ' ');
-        if (!isdigit(*counter)) {
+        bool containsOperator = MathParser_containsOperator(counter);
+        if (!isdigit(*counter) && !containsOperator) {
             if (!*counter) {
                 fprintf(stderr, "%s: syntax error: unexpected end of input, expected integer\n", SHELL_NAME);
             } else {
@@ -1383,13 +1375,42 @@ int processCommand(char *cmd) {
         }
 
         int loopAmount = 0;
-        do {
-            loopAmount = (loopAmount * 10) + (*counter - '0');
-        } while (isdigit(*++counter));
+        if (containsOperator) {
+            CharList *exprList = CharList_create();
+            int nestLevel = 1;
+            do {
+                switch (*counter) {
+                    case '(':
+                        nestLevel++;
+                        break;
+                    case ')':
+                        nestLevel--;
+                        break;
+                }
+                if (nestLevel <= 0) break;
+                CharList_add(exprList, *counter++);
+            } while (*counter);
 
-        while (*counter == ' ') {
-            counter++;
+            char *expr = CharList_toStr(exprList);
+            CharList_free(exprList);
+            int parseStatus;
+            double result = MathParser_parse(expr, &parseStatus);
+            free(expr);
+            if (MATH_PARSER_ERR_MSG(parseStatus)) {
+                return -1;
+            }
+
+            loopAmount = (int) result;
+        } else {
+            do {
+                loopAmount = (loopAmount * 10) + (*counter - '0');
+            } while (isdigit(*++counter));
+
+            while (*counter == ' ') {
+                counter++;
+            }
         }
+
         if (*counter != ')') {
             if (!*counter) {
                 fprintf(stderr, "%s: syntax error: unexpected end of input, expected ')'\n", SHELL_NAME);

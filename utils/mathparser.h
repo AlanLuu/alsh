@@ -1,11 +1,11 @@
 #ifndef ALSH_MATH_PARSER_
 #define ALSH_MATH_PARSER_
 
-#define MATH_PARSER_OK 0
-#define MATH_PARSER_DIVIDE_ZERO 1
-#define MATH_PARSER_UNEXPECTED_CHAR 2
-#define MATH_PARSER_PARSE_ERROR 3
+#include <stdbool.h>
 
+bool MathParser_containsOperator(char *str);
+bool MathParser_isAnyOperator(char c);
 double MathParser_parse(char *expression, int *parseStatus);
+bool MathParser_printErrMsg(int parseStatus, char *shellName);
 
 #endif
