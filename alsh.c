@@ -615,6 +615,7 @@ int executeCommand(char *cmd, bool waitForCommand) {
         return 1;
     }
 
+    bool isBuiltInCommand = false;
     int tempNodeIndex = 0;
     for (StringNode *temp = tokens->head; temp != NULL;) {
         char *strToRemove = temp->str;
@@ -686,7 +687,8 @@ int executeCommand(char *cmd, bool waitForCommand) {
             temp->str = finalStr;
             temp = temp->next;
             if (temp == NULL && tempNodeIndex == 0 && !seenOtherChr) {
-                StringLinkedList_prepend(tokens, "echo", false);
+                printf("%s\n", finalStr);
+                isBuiltInCommand = true;
             }
             tempNodeIndex++;
         } else {
@@ -698,7 +700,7 @@ int executeCommand(char *cmd, bool waitForCommand) {
     StringNode *head = tokens->head;
     if (aliases != NULL && head != NULL) {
         char *alias = StringHashMap_get(aliases, head->str);
-        if (alias != NULL) {
+        if (alias != NULL && strcmp(alias, head->str) != 0) {
             if (!*alias) {
                 if (*stdinStatus) {
                     dup2(stdinStatus[1], STDIN_FILENO);
@@ -743,7 +745,7 @@ int executeCommand(char *cmd, bool waitForCommand) {
             }
         }
     }
-    bool isBuiltInCommand = false;
+
     char *colorAutoCmds[] = {"ls", "grep"};
     if (head == NULL || strcmp(head->str, "false") == 0) {
         isBuiltInCommand = true;
@@ -901,16 +903,20 @@ int executeCommand(char *cmd, bool waitForCommand) {
         } else {
             exitStatus = 1;
         }
-    } else if (aliases != NULL && strcmp(head->str, "alias") == 0) {
+    } else if (strcmp(head->str, "alias") == 0) {
         isBuiltInCommand = true;
         if (head->next == NULL) {
-            char ***keysVals = StringHashMap_entries(aliases);
-            int keysValsSize = StringHashMap_size(aliases);
-            for (int i = 0; i < keysValsSize; i++) {
-                printf("alias %s='%s'\n", keysVals[i][0], keysVals[i][1]);
-                free(keysVals[i]);
+            if (aliases != NULL) {
+                char ***keysVals = StringHashMap_entries(aliases);
+                int keysValsSize = StringHashMap_size(aliases);
+                for (int i = 0; i < keysValsSize; i++) {
+                    printf("alias %s='%s'\n", keysVals[i][0], keysVals[i][1]);
+                    free(keysVals[i]);
+                }
+                free(keysVals);
             }
-            free(keysVals);
+        } else if (aliases == NULL) {
+            aliases = StringHashMap_create();
         }
         for (StringNode *argNode = head->next; argNode != NULL; argNode = argNode->next) {
             char *argStr = argNode->str;
@@ -1600,7 +1606,6 @@ int main(int argc, char *argv[]) {
         }
         fclose(fp);
     } else {
-        aliases = StringHashMap_create();
         bool stdinFromTerminal = isatty(STDIN_FILENO);
         if (stdinFromTerminal) {
             history.capacity = STARTING_HISTORY_CAPACITY;
@@ -1752,7 +1757,9 @@ int main(int argc, char *argv[]) {
 
         clearHistoryElements();
         free(history.elements);
-        StringHashMap_free(aliases);
+        if (aliases != NULL) {
+            StringHashMap_free(aliases);
+        }
     }
     free(cmd);
     return 0;
