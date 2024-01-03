@@ -12,6 +12,8 @@
 #define MATH_PARSER_UNEXPECTED_CHAR 2
 #define MATH_PARSER_PARSE_ERROR 3
 
+#define NEGATE_SYMBOL 'm'
+
 bool MathParser_isAnyOperator(char c) {
     return c == '+' || c == '-' || c == '*' || c == '/';
 }
@@ -27,6 +29,7 @@ bool MathParser_containsOperator(char *str) {
 double parsePostfixExpr(char *postfixExpr, int *status) {
     DoubleList *output = DoubleList_create();
     CharList *temp = CharList_create();
+    bool isPositive = true;
     int numDecimalPoints = 0;
     char *postfixExprPtr = postfixExpr;
     while (*postfixExprPtr) {
@@ -50,7 +53,9 @@ double parsePostfixExpr(char *postfixExpr, int *status) {
         ) {
             numDecimalPoints--;
             char *numStr = CharList_toStr(temp);
-            DoubleList_add(output, strtod(numStr, NULL));
+            double numStrVal = strtod(numStr, NULL);
+            DoubleList_add(output, isPositive ? numStrVal : -numStrVal);
+            isPositive = true;
             free(numStr);
             CharList_clear(temp);
             do {
@@ -88,6 +93,9 @@ double parsePostfixExpr(char *postfixExpr, int *status) {
             }
             DoubleList_add(output, result);
             postfixExprPtr++;
+        } else if (token == NEGATE_SYMBOL) {
+            isPositive = !isPositive;
+            postfixExprPtr++;
         } else {
             postfixExprPtr++;
         }
@@ -97,6 +105,7 @@ double parsePostfixExpr(char *postfixExpr, int *status) {
     if (temp->size > 0) {
         char *numStr = CharList_toStr(temp);
         result = strtod(numStr, NULL);
+        result = isPositive ? result : -result;
         free(numStr);
     } else {
         result = DoubleList_peek(output);
@@ -111,21 +120,29 @@ double parsePostfixExpr(char *postfixExpr, int *status) {
 char* infixToPostfix(char *infixExpr) {
     CharList *output = CharList_create();
     CharList *stack = CharList_create();
+    bool isBeginningOfExpr = true;
+    bool prevTokenIsOperator = false;
     for (char *infixExprPtr = infixExpr; *infixExprPtr; infixExprPtr++) {
+        bool isParentheses = false;
         char token = *infixExprPtr;
         if (token == ' ') continue;
         switch (token) {
             case '+':
             case '-': {
-                CharList_add(output, ' ');
-                char value = CharList_peek(stack);
-                while (MathParser_isAnyOperator(value)) {
-                    CharList_pop(stack);
-                    CharList_add(output, value);
+                if (token == '-' && (isBeginningOfExpr || prevTokenIsOperator)) {
+                    CharList_add(output, NEGATE_SYMBOL);
+                } else {
                     CharList_add(output, ' ');
-                    value = CharList_peek(stack);
+                    char value = CharList_peek(stack);
+                    while (MathParser_isAnyOperator(value)) {
+                        CharList_pop(stack);
+                        CharList_add(output, value);
+                        CharList_add(output, ' ');
+                        value = CharList_peek(stack);
+                    }
+                    CharList_add(stack, token);
                 }
-                CharList_add(stack, token);
+                prevTokenIsOperator = true;
                 break;
             }
             case '*':
@@ -138,11 +155,13 @@ char* infixToPostfix(char *infixExpr) {
                     CharList_add(output, ' ');
                 }
                 CharList_add(stack, token);
+                prevTokenIsOperator = true;
                 break;
             }
             
             case '(':
                 CharList_add(stack, token);
+                isParentheses = true;
                 break;
             case ')': {
                 CharList_add(output, ' ');
@@ -150,6 +169,7 @@ char* infixToPostfix(char *infixExpr) {
                 while ((value = CharList_pop(stack)) != '(') {
                     CharList_add(output, value);
                 }
+                isParentheses = true;
                 break;
             }
             
@@ -160,8 +180,10 @@ char* infixToPostfix(char *infixExpr) {
                     return NULL;
                 }
                 CharList_add(output, token);
+                prevTokenIsOperator = false;
                 break;
         }
+        if (!isParentheses) isBeginningOfExpr = false;
     }
 
     char remaining;
