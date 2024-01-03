@@ -114,8 +114,11 @@ char CharList_pop(CharList *list) {
 }
 
 char* CharList_toStr(CharList *list) {
-    char *arr = emalloc(sizeof(char) * (size_t) (list->size + 1));
-    memcpy(arr, list->data, (size_t) list->size);
+    size_t size = (size_t) (list->size + 1);
+    char *arr = emalloc(sizeof(char) * size);
+    if (size > 1) {
+        memcpy(arr, list->data, (size_t) list->size);
+    }
     arr[list->size] = 0;
     return arr;
 }

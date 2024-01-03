@@ -23,6 +23,11 @@ A custom UNIX shell written in C
 - Create custom aliases for commands by using `alias alias_name=command`, where `alias_name` is the alias name and `command` is the command to execute when the alias is typed as a command
     - Multiple aliases can be stored at once by using `alias alias_name_1=command_1 alias_name_2=command_2 alias_name_3=command_3 ...`
     - To list all stored aliases for the current shell session, simply type `alias` without any arguments
+- Create environment variables and shell variables by using the `export` and `let` keywords respectively
+    - `export env_var_name=env_var_value`
+    - `let var_name=var_value`
+    - Multiple variables can be created at once by using `<export|let> var_name_1=var_value_1 var_name_2=var_value_2 var_name_3=var_value_3 ...`
+    - To use the value of a variable in a command, prefix it with `$`, like `echo $var_name`
 - Replace the current alsh shell's process with a new process by using `exec [command]`
     - Running `exec` without specifying a command will replace the current alsh shell's process with a new instance of another alsh shell
 - `repeat (n) <command>` will execute the given command `n` times

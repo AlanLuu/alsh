@@ -28,6 +28,7 @@
 #define STARTING_HISTORY_CAPACITY 25
 #define TEST_COMMAND "chk"
 #define USERNAME_MAX_LENGTH 32
+#define VARIABLE_PREFIX '$'
 
 #define MATH_PARSER_ERR_MSG(status) MathParser_printErrMsg(status, SHELL_NAME)
 
@@ -44,6 +45,9 @@ static char *executablePath; //Path to where the current alsh shell executable i
 static bool isBackgroundCmd = false; //Did the user run a command in the background?
 static int numBackgroundCmds = 0; //Number of background commands running
 static struct passwd *pwd; //User info
+static StringHashMap *variables; //Stores user-defined variables
+
+extern char **environ;
 
 bool isInHomeDirectory(void) {
     char *cwdPtr = cwd;
@@ -506,20 +510,31 @@ int* handleRedirectStdin(char *cmd) {
     return status;
 }
 
+char* processVariables(char *cmd);
 int executeCommand(char *cmd, bool waitForCommand) {
-    if (cmd == NULL || !*cmd) {
+    char *processVarCmd = NULL;
+    if (cmd == NULL || !*cmd || (processVarCmd = processVariables(cmd)) == NULL) {
         return 1;
+    }
+
+    char *originalCmd = cmd;
+    bool processedVars = processVarCmd != originalCmd;
+    if (processedVars) {
+        trimWhitespaceFromEnds(processVarCmd);
+        cmd = processVarCmd;
     }
 
     int *stdinStatus = handleRedirectStdin(cmd);
     if (*stdinStatus == -1) {
         free(stdinStatus);
+        if (processedVars) free(processVarCmd);
         return 1;
     }
     int *stdoutStatus = handleRedirectStdout(cmd);
     if (*stdoutStatus == -1) {
         free(stdinStatus);
         free(stdoutStatus);
+        if (processedVars) free(processVarCmd);
         return 1;
     }
     
@@ -612,6 +627,7 @@ int executeCommand(char *cmd, bool waitForCommand) {
         free(stdoutStatus);
         CharList_free(tempCmd);
         StringLinkedList_free(tokens);
+        if (processedVars) free(processVarCmd);
         return 1;
     }
 
@@ -663,6 +679,7 @@ int executeCommand(char *cmd, bool waitForCommand) {
                         free(stdoutStatus);
                         CharList_free(tempCmd);
                         StringLinkedList_free(tokens);
+                        if (processedVars) free(processVarCmd);
                         CharList_free(finalStrList);
                         CharList_free(exprList);
                         return 1;
@@ -714,6 +731,7 @@ int executeCommand(char *cmd, bool waitForCommand) {
                 free(stdoutStatus);
                 CharList_free(tempCmd);
                 StringLinkedList_free(tokens);
+                if (processedVars) free(processVarCmd);
                 return 1;
             }
 
@@ -747,6 +765,7 @@ int executeCommand(char *cmd, bool waitForCommand) {
     }
 
     char *colorAutoCmds[] = {"ls", "grep"};
+    bool isExport = false;
     if (head == NULL || strcmp(head->str, "false") == 0) {
         isBuiltInCommand = true;
         exitStatus = 1;
@@ -797,6 +816,79 @@ int executeCommand(char *cmd, bool waitForCommand) {
             }
             fprintf(stderr, "%s: cd: %s: %s\n", SHELL_NAME, arg, err);
             exitStatus = 1;
+        }
+    } else if ((isExport = strcmp(head->str, "export") == 0) || strcmp(head->str, "let") == 0) {
+        isBuiltInCommand = true;
+
+        if (head->next == NULL) {
+            if (isExport) {
+                char **environPtr = environ;
+                while (*environPtr) {
+                    char *envStr = *environPtr++;
+                    printf("export ");
+                    while (*envStr && *envStr != '=') {
+                        putchar(*envStr++);
+                    }
+                    putchar('=');
+                    putchar('\'');
+                    while (*++envStr) {
+                        putchar(*envStr);
+                    }
+                    putchar('\'');
+                    putchar('\n');
+                }
+            } else if (variables != NULL) {
+                char ***keysVals = StringHashMap_entries(variables);
+                int keysValsSize = StringHashMap_size(variables);
+                for (int i = 0; i < keysValsSize; i++) {
+                    printf("let %s=\"%s\"\n", keysVals[i][0], keysVals[i][1]);
+                    free(keysVals[i]);
+                }
+                free(keysVals);
+            }
+        } else if (!isExport && variables == NULL) {
+            variables = StringHashMap_create();
+        }
+
+        for (StringNode *argNode = head->next; argNode != NULL; argNode = argNode->next) {
+            char *argStr = argNode->str;
+            char *equalsSign = strchr(argStr, '=');
+            if (equalsSign != NULL) {
+                if (argStr[0] == '=') {
+                    fprintf(stderr, "%s: %s: unexpected token '='", SHELL_NAME, isExport ? "export" : "let");
+                    exitStatus = 1;
+                    continue;
+                }
+
+                StringLinkedList *varList = split(argStr, "=");
+                char *varKey = varList->head->str;
+                char *varVal = varList->head->next->str;
+                bool replacingLetVal = variables != NULL && StringHashMap_get(variables, varKey) != NULL;
+                if (isExport) {
+                    setenv(varKey, varVal, true);
+                    if (replacingLetVal) {
+                        StringHashMap_remove(variables, varKey);
+                    }
+                } else {
+                    char *varKeyDup = strdup(varKey);
+                    char *varValDup = strdup(varVal);
+                    bool replacingExportVal = getenv(varKey) != NULL;
+                    StringHashMap_put(variables, varKeyDup, true, varValDup, true);
+                    if (replacingLetVal) {
+                        free(varKeyDup);
+                    }
+                    if (replacingExportVal) {
+                        unsetenv(varKey);
+                    }
+                }
+                StringLinkedList_free(varList);
+            } else if (isExport && variables != NULL) {
+                char *letVal = StringHashMap_get(variables, argStr);
+                if (letVal != NULL) {
+                    setenv(argStr, letVal, true);
+                    StringHashMap_remove(variables, argStr);
+                }
+            }
         }
     } else if (strcmp(head->str, TEST_COMMAND) == 0) {
         isBuiltInCommand = true;
@@ -910,7 +1002,7 @@ int executeCommand(char *cmd, bool waitForCommand) {
                 char ***keysVals = StringHashMap_entries(aliases);
                 int keysValsSize = StringHashMap_size(aliases);
                 for (int i = 0; i < keysValsSize; i++) {
-                    printf("alias %s='%s'\n", keysVals[i][0], keysVals[i][1]);
+                    printf("alias %s=\"%s\"\n", keysVals[i][0], keysVals[i][1]);
                     free(keysVals[i]);
                 }
                 free(keysVals);
@@ -941,7 +1033,7 @@ int executeCommand(char *cmd, bool waitForCommand) {
             } else {
                 char *value = StringHashMap_get(aliases, argStr);
                 if (value != NULL) {
-                    printf("alias %s='%s'\n", argStr, value);
+                    printf("alias %s=\"%s\"\n", argStr, value);
                 } else {
                     fprintf(stderr, "%s: alias: %s: not found\n", SHELL_NAME, argStr);
                     exitStatus = 1;
@@ -1099,6 +1191,7 @@ int executeCommand(char *cmd, bool waitForCommand) {
     free(stdoutStatus);
     CharList_free(tempCmd);
     StringLinkedList_free(tokens);
+    if (processedVars) free(processVarCmd);
     return exitStatus;
 }
 
@@ -1371,6 +1464,15 @@ int processCommand(char *cmd) {
             counter++;
         } while (*counter == ' ');
         bool containsOperator = MathParser_containsOperator(counter);
+        if (!containsOperator) {
+            char *counterPtr = counter;
+            while (*counterPtr) {
+                if (*counterPtr++ == VARIABLE_PREFIX) {
+                    while (*counterPtr == ' ') counterPtr++;
+                    containsOperator = *counterPtr != ')';
+                }
+            }
+        }
         if (!isdigit(*counter) && !containsOperator) {
             if (!*counter) {
                 fprintf(stderr, "%s: syntax error: unexpected end of input, expected integer\n", SHELL_NAME);
@@ -1398,6 +1500,11 @@ int processCommand(char *cmd) {
             } while (*counter);
 
             char *expr = CharList_toStr(exprList);
+            if (CharList_contains(exprList, VARIABLE_PREFIX)) {
+                char *oldExpr = expr;
+                expr = processVariables(oldExpr);
+                free(oldExpr);
+            }
             CharList_free(exprList);
             int parseStatus;
             double result = MathParser_parse(expr, &parseStatus);
@@ -1559,6 +1666,70 @@ int processHistoryExclamations(char *cmd) {
     }
 
     return -1;
+}
+
+char* processVariables(char *cmd) {
+    if (strchr(cmd, VARIABLE_PREFIX) != NULL && cmd[1]) {
+        CharList *tempCmd = CharList_create();
+        bool inParentheses = false;
+        char *cmdCounter = cmd;
+
+        while (*cmdCounter) {
+            switch (*cmdCounter) {
+                case '(':
+                    inParentheses = true;
+                    break;
+                case ')':
+                    inParentheses = false;
+                    break;
+            }
+            if (*cmdCounter == VARIABLE_PREFIX) {
+                CharList *varNameList = NULL;
+                bool inVarLoop = false;
+                while (
+                    *++cmdCounter
+                    && *cmdCounter != ' '
+                    && *cmdCounter != ')'
+                    && *cmdCounter != '"'
+                    && *cmdCounter != ';'
+                    && *cmdCounter != '&'
+                    && *cmdCounter != '|'
+                    && *cmdCounter != VARIABLE_PREFIX
+                ) {
+                    inVarLoop = true;
+                    if (varNameList == NULL) {
+                        varNameList = CharList_create();
+                    }
+                    CharList_add(varNameList, *cmdCounter);
+                }
+                if (!inVarLoop) continue;
+
+                char *varKey = varNameList->data;
+                char *varValue = getenv(varKey);
+                if (varValue == NULL && variables != NULL) {
+                    varValue = StringHashMap_get(variables, varKey);
+                }
+
+                if (varValue != NULL) {
+                    CharList_addStr(tempCmd, varValue);
+                } else if (inParentheses) {
+                    fprintf(stderr, "%s: name error: %s is not defined\n", SHELL_NAME, varKey);
+                    CharList_free(varNameList);
+                    CharList_free(tempCmd);
+                    return NULL;
+                }
+                CharList_free(varNameList);
+            } else {
+                CharList_add(tempCmd, *cmdCounter++);
+            }
+        }
+        
+        char *newCmd = CharList_toStr(tempCmd);
+        CharList_free(tempCmd);
+        return newCmd;
+    }
+
+    return cmd;
 }
 
 void printIntro(void) {
@@ -1757,10 +1928,15 @@ int main(int argc, char *argv[]) {
 
         clearHistoryElements();
         free(history.elements);
-        if (aliases != NULL) {
-            StringHashMap_free(aliases);
+    }
+
+    StringHashMap *hashMapsToFree[] = {aliases, variables};
+    for (size_t i = 0; i < sizeof(hashMapsToFree) / sizeof(*hashMapsToFree); i++) {
+        if (hashMapsToFree[i] != NULL) {
+            StringHashMap_free(hashMapsToFree[i]);
         }
     }
+
     free(cmd);
     return 0;
 }

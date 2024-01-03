@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 
 import json
+import re
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 
+DECLARE_VAR_KEYWORD = "let"
 SHELL_NAME = "alsh"
 TESTS_FILE_NAME = "tests.json"
 
@@ -50,13 +52,19 @@ def main():
     tests_file = Path(f"./{TESTS_FILE_NAME}")
     try:
         with tests_file.open() as f:
-            test_cases: dict = json.load(f)
+            test_cases: dict[str] = json.load(f)
     except FileNotFoundError:
         eprint(f"Error: could not find {TESTS_FILE_NAME}")
         sys.exit(1)
     
     print_green = print_wrap(ANSI.green)
     print_red = eprint_wrap(ANSI.red)
+    regexes = {
+        rf"^{DECLARE_VAR_KEYWORD} ": "",
+        rf"&&[ ]*{DECLARE_VAR_KEYWORD} ": "&& ",
+        rf"\|\|[ ]*{DECLARE_VAR_KEYWORD} ": "|| ",
+        rf";[ ]*{DECLARE_VAR_KEYWORD} ": "; "
+    }
     tests_passed = 0
     tests_failed = 0
     for key, val in test_cases.items():
@@ -64,9 +72,14 @@ def main():
             print(f'Testing "{key}"')
         else:
             print("Testing empty command")
-
+        
+        expected_output_key = key
+        for pattern, repl in regexes.items():
+            if re.match(pattern, expected_output_key):
+                expected_output_key = re.sub(pattern, repl, expected_output_key)
+        
         expected_output = subprocess.run(
-            key,
+            expected_output_key,
             shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT
