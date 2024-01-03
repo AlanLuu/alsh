@@ -1694,6 +1694,7 @@ char* processVariables(char *cmd) {
                     && *cmdCounter != ';'
                     && *cmdCounter != '&'
                     && *cmdCounter != '|'
+                    && !MathParser_isAnyOperator(*cmdCounter)
                     && *cmdCounter != VARIABLE_PREFIX
                 ) {
                     inVarLoop = true;
