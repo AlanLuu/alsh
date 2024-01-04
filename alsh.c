@@ -1307,16 +1307,27 @@ int processCommand(char *cmd) {
     }
 
     //Syntax: if ([-]* <commandToTest>) <command1> [else <command2>]
+    //Syntax: while ([-]* <commandToTest>) <command>
     const char *const ifStatement = "if";
+    const char *const whileStatement = "while";
     size_t ifStatementLen = strlen(ifStatement);
-    if (strncmp(cmd, ifStatement, ifStatementLen) == 0
+    size_t whileStatementLen = strlen(whileStatement);
+    bool isIfStatement = false;
+    if ((isIfStatement = (strncmp(cmd, ifStatement, ifStatementLen) == 0
         && (
             !cmd[ifStatementLen]
             || cmd[ifStatementLen] == ' '
             || cmd[ifStatementLen] == '('
+        ))) || (
+            strncmp(cmd, whileStatement, whileStatementLen) == 0
+            && (
+                !cmd[whileStatementLen]
+                || cmd[whileStatementLen] == ' '
+                || cmd[whileStatementLen] == '('
+            )
         )
     ) {
-        char *counter = cmd + ifStatementLen;
+        char *counter = cmd + (isIfStatement ? ifStatementLen : whileStatementLen);
         while (*counter == ' ') {
             counter++;
         }
@@ -1389,47 +1400,58 @@ int processCommand(char *cmd) {
         trimWhitespaceFromEnds(testCmd);
         int status = processCommand(testCmd);
         bool ifCond = (!negate && status == 0) || (negate && status != 0);
-
-        const char *const elseStatement = "else";
-        size_t elseStatementLen = strlen(elseStatement);
-        char *elseLocation = strstr(counter, elseStatement);
-        if (elseLocation != NULL && *(elseLocation - 1) == ' ') {
-            char *elseCounter = elseLocation + elseStatementLen;
-            while (*elseCounter == ' ') {
-                elseCounter++;
-            }
-            if (!*elseCounter) {
-                fprintf(stderr, "%s: syntax error: unexpected end of input after '%s'\n", SHELL_NAME, elseStatement);
-                CharList_free(testCmdList);
-                return -1;
-            }
-            if (strncmp(elseCounter, ifStatement, ifStatementLen) != 0) {
-                char *nextElseLocation = strstr(elseCounter, elseStatement);
-                while (nextElseLocation != NULL && *(nextElseLocation - 1) == ' ') {
-                    elseLocation = nextElseLocation;
-                    elseCounter = elseLocation + elseStatementLen;
-                    nextElseLocation = strstr(elseCounter, elseStatement);
+        if (isIfStatement) {
+            const char *const elseStatement = "else";
+            size_t elseStatementLen = strlen(elseStatement);
+            char *elseLocation = strstr(counter, elseStatement);
+            if (elseLocation != NULL && *(elseLocation - 1) == ' ') {
+                char *elseCounter = elseLocation + elseStatementLen;
+                while (*elseCounter == ' ') {
+                    elseCounter++;
                 }
-            }
-
-            if (ifCond) {
-                CharList *ifCounterList = CharList_create();
-                while (counter < elseLocation) {
-                    CharList_add(ifCounterList, *counter++);
+                if (!*elseCounter) {
+                    fprintf(stderr, "%s: syntax error: unexpected end of input after '%s'\n", SHELL_NAME, elseStatement);
+                    CharList_free(testCmdList);
+                    return -1;
+                }
+                if (strncmp(elseCounter, ifStatement, ifStatementLen) != 0) {
+                    char *nextElseLocation = strstr(elseCounter, elseStatement);
+                    while (nextElseLocation != NULL && *(nextElseLocation - 1) == ' ') {
+                        elseLocation = nextElseLocation;
+                        elseCounter = elseLocation + elseStatementLen;
+                        nextElseLocation = strstr(elseCounter, elseStatement);
+                    }
                 }
 
-                char *ifCounter = CharList_toStr(ifCounterList);
-                trimWhitespaceFromEnds(ifCounter);
-                (void) processCommand(ifCounter);
+                if (ifCond) {
+                    CharList *ifCounterList = CharList_create();
+                    while (counter < elseLocation) {
+                        CharList_add(ifCounterList, *counter++);
+                    }
 
-                free(ifCounter);
-                CharList_free(ifCounterList);
-            } else {
-                trimWhitespaceFromEnds(elseCounter);
-                (void) processCommand(elseCounter);
+                    char *ifCounter = CharList_toStr(ifCounterList);
+                    trimWhitespaceFromEnds(ifCounter);
+                    (void) processCommand(ifCounter);
+
+                    free(ifCounter);
+                    CharList_free(ifCounterList);
+                } else {
+                    trimWhitespaceFromEnds(elseCounter);
+                    (void) processCommand(elseCounter);
+                }
+            } else if (ifCond) {
+                (void) processCommand(counter);
             }
-        } else if (ifCond) {
-            (void) processCommand(counter);
+        } else {
+            while (ifCond) {
+                if (sigintReceived || status < 0) {
+                    break;
+                }
+                (void) processCommand(counter);
+                status = processCommand(testCmd);
+                ifCond = (!negate && status == 0) || (negate && status != 0);
+            }
+            if (!ifCond) status = 0;
         }
 
         free(testCmd);
