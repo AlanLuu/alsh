@@ -49,9 +49,12 @@ static StringHashMap *variables; //Stores user-defined variables
 
 extern char **environ;
 
+char* getHomeDirectory(void) {
+    return pwd != NULL ? pwd->pw_dir : getenv("HOME");
+}
 bool isInHomeDirectory(void) {
     char *cwdPtr = cwd;
-    char *homeDirPtr = pwd->pw_dir;
+    char *homeDirPtr = getHomeDirectory();
     while (*homeDirPtr) {
         if (*cwdPtr++ != *homeDirPtr++) {
             return false;
@@ -60,7 +63,7 @@ bool isInHomeDirectory(void) {
     return true;
 }
 bool isRootUser(void) {
-    return pwd->pw_uid == 0;
+    return getuid() == 0;
 }
 
 typedef struct History {
@@ -781,7 +784,7 @@ int executeCommand(char *cmd, bool waitForCommand) {
         StringNode *argNode = head->next;
         char *arg = argNode != NULL ? argNode->str : NULL;
         if (arg == NULL) { //No argument, change to home directory
-            if (chdir(pwd->pw_dir) != 0) {
+            if (chdir(getHomeDirectory()) != 0) {
                 //Should not happen
                 fprintf(stderr, "%s: cd: Failed to change to home directory\n", SHELL_NAME);
                 exitStatus = 1;
@@ -1100,7 +1103,7 @@ int executeCommand(char *cmd, bool waitForCommand) {
                     //20 characters for the rest of the path
                     //1 character for the null terminator
                     char historyFile[USERNAME_MAX_LENGTH + 20 + 1];
-                    strcpy(historyFile, pwd->pw_dir);
+                    strcpy(historyFile, getHomeDirectory());
                     strcat(historyFile, "/" HISTORY_FILE_NAME);
                     FILE *historyfp = fopen(historyFile, "w");
                     if (historyfp == NULL) {
@@ -1771,7 +1774,7 @@ void printPrompt(void) {
     if (isInHomeDirectory()) {
         printf(isRootUser()
             ? "\033[38;5;196;1m%s-root:\033[1;34m~%s\033[0m# "
-            : "%s:\033[1;34m~%s\033[0m$ ", SHELL_NAME, (cwd + strlen(pwd->pw_dir))
+            : "%s:\033[1;34m~%s\033[0m$ ", SHELL_NAME, (cwd + strlen(getHomeDirectory()))
         );
     } else {
         printf(isRootUser()
@@ -1785,6 +1788,10 @@ int main(int argc, char *argv[]) {
     char *cmd = emalloc(sizeof(char) * COMMAND_BUFFER_SIZE);
     executablePath = argv[0];
     pwd = getpwuid(getuid());
+    if (pwd == NULL && getHomeDirectory() == NULL) {
+        fprintf(stderr, "%s: Could not determine home directory, exiting program...\n", SHELL_NAME);
+        exit(1);
+    }
     if (argc > 1) {
         FILE *fp = fopen(argv[1], "r");
         if (fp == NULL) {
@@ -1810,7 +1817,7 @@ int main(int argc, char *argv[]) {
             //20 characters for the rest of the path
             //1 character for the null terminator
             char historyFile[USERNAME_MAX_LENGTH + 20 + 1];
-            strcpy(historyFile, pwd->pw_dir);
+            strcpy(historyFile, getHomeDirectory());
             strcat(historyFile, "/" HISTORY_FILE_NAME);
 
             FILE *historyfp = fopen(historyFile, "r");
