@@ -1836,6 +1836,7 @@ int main(int argc, char *argv[]) {
             sigaction(SIGINT, &sa1, NULL);
             sigaction(SIGCHLD, &sa2, NULL);
 
+            setvbuf(stdout, NULL, _IONBF, 0);
             printIntro();
             printPrompt();
         }
