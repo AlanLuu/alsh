@@ -41,6 +41,7 @@ A custom UNIX shell written in C
 - `while (<commandToTest>) <command>` will repeatedly execute the given command as long as `commandToTest` returns an exit status of 0
 - Compare numerical values by using `chk <num1> <cond> <num2>`, where `num1` and `num2` are the first and second numerical values to compare respectively, and `cond` is the test condition to use on `num1` and `num2`
     - Valid test conditions for `cond` are the following: `eq`, `ne`, `lt`, `le`, `gt`, `ge`, which stand for equals, not equals, less than, less than or equal to, greater than, and greater than or equal to respectively
+- If `.alshrc` is present in the home directory, then it will be executed at the start of any interactive alsh shell session
 
 # Installation
 ```

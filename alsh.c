@@ -32,12 +32,6 @@
 
 #define MATH_PARSER_ERR_MSG(status) MathParser_printErrMsg(status, SHELL_NAME)
 
-#ifdef __linux__
-#define IS_LINUX true
-#else
-#define IS_LINUX false
-#endif
-
 static StringHashMap *aliases; //Stores command aliases
 static StringLinkedList *bgCmdDoneMessages; //Stores background command complete messages
 static char cwd[CWD_BUFFER_SIZE]; //Current working directory
@@ -767,15 +761,10 @@ int executeCommand(char *cmd, bool waitForCommand) {
         }
     }
 
-    char *colorAutoCmds[] = {"ls", "grep"};
     bool isExport = false;
     if (head == NULL || strcmp(head->str, "false") == 0) {
         isBuiltInCommand = true;
         exitStatus = 1;
-    } else if (strArrContains(colorAutoCmds, head->str, sizeof(colorAutoCmds) / sizeof(*colorAutoCmds))) {
-        if (IS_LINUX) {
-            StringLinkedList_append(tokens, "--color=auto", false);
-        }
     } else if (strcmp(head->str, "true") == 0) {
         isBuiltInCommand = true;
         exitStatus = 0;
@@ -1789,13 +1778,17 @@ int main(int argc, char *argv[]) {
     executablePath = argv[0];
     pwd = getpwuid(getuid());
     if (pwd == NULL && getHomeDirectory() == NULL) {
-        fprintf(stderr, "%s: Could not determine home directory, exiting program...\n", SHELL_NAME);
+        fprintf(stderr, "%s: Could not determine home directory\n", SHELL_NAME);
+        fprintf(stderr, "Please make sure the HOME environment variable is defined\n");
+        free(cmd);
         exit(1);
     }
+    
     if (argc > 1) {
         FILE *fp = fopen(argv[1], "r");
         if (fp == NULL) {
             fprintf(stderr, "%s: %s: No such file or directory\n", SHELL_NAME, argv[1]);
+            free(cmd);
             exit(1);
         }
         while (fgets(cmd, COMMAND_BUFFER_SIZE, fp) != NULL) {
@@ -1812,14 +1805,14 @@ int main(int argc, char *argv[]) {
             history.capacity = STARTING_HISTORY_CAPACITY;
             history.elements = emalloc(sizeof(char*) * (size_t) history.capacity);
 
-            //Total of 52 characters for /home/<username>/.alsh_history
+            //Total of 53 characters for /home/<username>/.alsh_history
             //Maximum of 32 characters for <username>
-            //20 characters for the rest of the path
+            //7 characters for /home//
+            //13 characters for the file name
             //1 character for the null terminator
-            char historyFile[USERNAME_MAX_LENGTH + 20 + 1];
+            char historyFile[7 + USERNAME_MAX_LENGTH + 13 + 1];
             strcpy(historyFile, getHomeDirectory());
             strcat(historyFile, "/" HISTORY_FILE_NAME);
-
             FILE *historyfp = fopen(historyFile, "r");
             if (historyfp != NULL) {
                 while (fgets(cmd, COMMAND_BUFFER_SIZE, historyfp) != NULL) {
@@ -1830,6 +1823,26 @@ int main(int argc, char *argv[]) {
                     }
                 }
                 fclose(historyfp);
+            }
+
+            //Total of 47 characters for /home/<username>/.alshrc
+            //Maximum of 32 characters for <username>
+            //7 characters for /home//
+            //7 characters for the file name
+            //1 character for the null terminator
+            char alshrc[7 + USERNAME_MAX_LENGTH + 7 + 1];
+            strcpy(alshrc, getHomeDirectory());
+            strcat(alshrc, "/.alshrc");
+            FILE *alshrcfp = fopen(alshrc, "r");
+            if (alshrcfp != NULL) {
+                while (fgets(cmd, COMMAND_BUFFER_SIZE, alshrcfp) != NULL) {
+                    removeNewlineIfExists(cmd);
+                    bool trimSuccess = trimWhitespaceFromEnds(cmd);
+                    if (*cmd && *cmd != COMMENT_CHAR && trimSuccess) {
+                        (void) processCommand(cmd);
+                    }
+                }
+                fclose(alshrcfp);
             }
 
             struct sigaction sa1 = {
