@@ -342,6 +342,25 @@ bool trimWhitespaceFromEnds(char *str) {
     return true;
 }
 
+/**
+ * Executes a function specified by the processLine function pointer
+ * on each line from the file referred to by fp
+ * 
+ * Returns the status of the last command executed from the file
+*/
+int processFile(char *cmd, FILE *fp, int (*processLine)(char*), bool closefp) {
+    int status = 0;
+    while (fgets(cmd, COMMAND_BUFFER_SIZE, fp) != NULL) {
+        removeNewlineIfExists(cmd);
+        bool trimSuccess = trimWhitespaceFromEnds(cmd);
+        if (*cmd && *cmd != COMMENT_CHAR && trimSuccess) {
+            status = processLine(cmd);
+        }
+    }
+    if (closefp) fclose(fp);
+    return status;
+}
+
 int* handleRedirectStdout(char *cmd) {
     char *stdoutRedirectChr = NULL;
     int *status;
@@ -507,6 +526,7 @@ int* handleRedirectStdin(char *cmd) {
     return status;
 }
 
+int processCommand(char *cmd);
 char* processVariables(char *cmd);
 int executeCommand(char *cmd, bool waitForCommand) {
     char *processVarCmd = NULL;
@@ -808,6 +828,25 @@ int executeCommand(char *cmd, bool waitForCommand) {
             }
             fprintf(stderr, "%s: cd: %s: %s\n", SHELL_NAME, arg, err);
             exitStatus = 1;
+        }
+    } else if (strcmp(head->str, "source") == 0) {
+        isBuiltInCommand = true;
+
+        StringNode *fileNameNode = head->next;
+        if (fileNameNode == NULL) {
+            fprintf(stderr, "%s: source: filename argument required\n", SHELL_NAME);
+            exitStatus = 1;
+        } else {
+            char *fileName = fileNameNode->str;
+            FILE *fp = fopen(fileName, "r");
+            if (fp == NULL) {
+                fprintf(stderr, "%s: %s: No such file or directory\n", SHELL_NAME, fileName);
+                exitStatus = 1;
+            } else {
+                char *cmdBuf = emalloc(sizeof(char) * COMMAND_BUFFER_SIZE);
+                exitStatus = processFile(cmdBuf, fp, processCommand, true);
+                free(cmdBuf);
+            }
         }
     } else if ((isExport = strcmp(head->str, "export") == 0) || strcmp(head->str, "let") == 0) {
         isBuiltInCommand = true;
@@ -1581,13 +1620,13 @@ int processCommand(char *cmd) {
     return processAndCommands(cmd);
 }
 
-void addCommandToHistory(char *cmd) {
+int addCommandToHistory(char *cmd) {
     //Don't add the history command to the history array if it's the latest command
     //in the array and the user types it again
     if (history.count > 0) {
         char *lastElement = history.elements[history.count - 1];
         if (strcmp(cmd, HISTORY_COMMAND) == 0 && strcmp(lastElement, cmd) == 0) {
-            return;
+            return 0;
         }
     }
 
@@ -1596,6 +1635,7 @@ void addCommandToHistory(char *cmd) {
         history.elements = erealloc(history.elements, sizeof(char*) * (size_t) history.capacity);
     }
     history.elements[history.count++] = strdup(cmd);
+    return 1;
 }
 
 int processHistoryExclamations(char *cmd) {
@@ -1791,14 +1831,7 @@ int main(int argc, char *argv[]) {
             free(cmd);
             exit(1);
         }
-        while (fgets(cmd, COMMAND_BUFFER_SIZE, fp) != NULL) {
-            removeNewlineIfExists(cmd);
-            bool trimSuccess = trimWhitespaceFromEnds(cmd);
-            if (*cmd && *cmd != COMMENT_CHAR && trimSuccess) {
-                (void) processCommand(cmd);
-            }
-        }
-        fclose(fp);
+        (void) processFile(cmd, fp, processCommand, true);
     } else {
         bool stdinFromTerminal = isatty(STDIN_FILENO);
         if (stdinFromTerminal) {
@@ -1815,14 +1848,7 @@ int main(int argc, char *argv[]) {
             strcat(historyFile, "/" HISTORY_FILE_NAME);
             FILE *historyfp = fopen(historyFile, "r");
             if (historyfp != NULL) {
-                while (fgets(cmd, COMMAND_BUFFER_SIZE, historyfp) != NULL) {
-                    removeNewlineIfExists(cmd);
-                    bool trimSuccess = trimWhitespaceFromEnds(cmd);
-                    if (*cmd && *cmd != COMMENT_CHAR && trimSuccess) {
-                        addCommandToHistory(cmd);
-                    }
-                }
-                fclose(historyfp);
+                (void) processFile(cmd, historyfp, addCommandToHistory, true);
             }
 
             //Total of 47 characters for /home/<username>/.alshrc
@@ -1835,14 +1861,7 @@ int main(int argc, char *argv[]) {
             strcat(alshrc, "/.alshrc");
             FILE *alshrcfp = fopen(alshrc, "r");
             if (alshrcfp != NULL) {
-                while (fgets(cmd, COMMAND_BUFFER_SIZE, alshrcfp) != NULL) {
-                    removeNewlineIfExists(cmd);
-                    bool trimSuccess = trimWhitespaceFromEnds(cmd);
-                    if (*cmd && *cmd != COMMENT_CHAR && trimSuccess) {
-                        (void) processCommand(cmd);
-                    }
-                }
-                fclose(alshrcfp);
+                (void) processFile(cmd, alshrcfp, processCommand, true);
             }
 
             struct sigaction sa1 = {
@@ -1885,7 +1904,7 @@ int main(int argc, char *argv[]) {
                             default: //No history event specified using !n or !-n
                                 break;
                         }
-                        addCommandToHistory(cmd);
+                        (void) addCommandToHistory(cmd);
                         size_t cmdLen = strlen(cmd);
                         bool runCmdInBackground = cmdLen > 1
                             && cmd[cmdLen - 1] == BACKGROUND_CHAR
