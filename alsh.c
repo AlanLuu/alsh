@@ -10,6 +10,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "isocline/include/isocline.h"
+
 #include "utils/charlist.h"
 #include "utils/doublelist.h"
 #include "utils/ealloc.h"
@@ -110,17 +112,17 @@ void sigchldHandler(int sig) {
     }
 }
 
-void sigintHandler(int sig) {
-    (void) sig;
-    sigintReceived = true;
-    if (numBackgroundCmds > 0) {
-        while (wait(NULL) > 0) {
-            numBackgroundCmds--;
-        }
-    } else {
-        (void) wait(NULL);
-    }
-}
+// void sigintHandler(int sig) {
+//     (void) sig;
+//     sigintReceived = true;
+//     if (numBackgroundCmds > 0) {
+//         while (wait(NULL) > 0) {
+//             numBackgroundCmds--;
+//         }
+//     } else {
+//         (void) wait(NULL);
+//     }
+// }
 
 /**
  * If any background command complete message exists in bgCmdDoneMessages,
@@ -1802,13 +1804,13 @@ void printPrompt(void) {
     //Print red prompt if user is root, otherwise print regular prompt
     if (isInHomeDirectory()) {
         printf(isRootUser()
-            ? "\033[38;5;196;1m%s-root:\033[1;34m~%s\033[0m# "
-            : "%s:\033[1;34m~%s\033[0m$ ", SHELL_NAME, (cwd + strlen(getHomeDirectory()))
+            ? "\033[38;5;196;1m%s-root:\033[1;34m~%s\033[0m"
+            : "%s:\033[1;34m~%s\033[0m", SHELL_NAME, (cwd + strlen(getHomeDirectory()))
         );
     } else {
         printf(isRootUser()
-            ? "\033[38;5;196;1m%s-root:\033[1;34m%s\033[0m# "
-            : "%s:\033[1;34m%s\033[0m$ ", SHELL_NAME, cwd
+            ? "\033[38;5;196;1m%s-root:\033[1;34m%s\033[0m"
+            : "%s:\033[1;34m%s\033[0m", SHELL_NAME, cwd
         );
     }
 }
@@ -1864,16 +1866,19 @@ int main(int argc, char *argv[]) {
                 (void) processFile(cmd, alshrcfp, processCommand, true);
             }
 
-            struct sigaction sa1 = {
-                .sa_handler = sigintHandler
-            };
+            // struct sigaction sa1 = {
+            //     .sa_handler = sigintHandler
+            // };
             struct sigaction sa2 = {
                 .sa_handler = sigchldHandler
             };
-            sigemptyset(&sa1.sa_mask);
+            //sigemptyset(&sa1.sa_mask);
             sigemptyset(&sa2.sa_mask);
-            sigaction(SIGINT, &sa1, NULL);
+            //sigaction(SIGINT, &sa1, NULL);
             sigaction(SIGCHLD, &sa2, NULL);
+
+            ic_set_prompt_marker("", "");
+            ic_enable_color(false);
 
             setvbuf(stdout, NULL, _IONBF, 0);
             printIntro();
@@ -1882,11 +1887,22 @@ int main(int argc, char *argv[]) {
 
         //Ignore SIGINT so that the shell doesn't exit when user sends it
         //usually by pressing Ctrl+C
-        bool typedExitCommand = false;
+        bool ic_pressed_ctrlC;
         do {
             sigintReceived = false;
             sigchldReceived = false;
-            while (fgets(cmd, COMMAND_BUFFER_SIZE, stdin) != NULL) {
+            ic_pressed_ctrlC = false;
+            char *input = NULL;
+            while (
+                (stdinFromTerminal
+                ? (input = ic_readline(isRootUser() ? "# " : "$ ", &ic_pressed_ctrlC))
+                : fgets(cmd, COMMAND_BUFFER_SIZE, stdin)) != NULL
+            ) {
+                if (input != NULL) {
+                    strcpy(cmd, input);
+                    free(input);
+                    input = NULL;
+                }
                 printBgCmdDoneMessageIfExists();
                 removeNewlineIfExists(cmd);
                 bool trimSuccess = trimWhitespaceFromEnds(cmd);
@@ -1933,7 +1949,6 @@ int main(int argc, char *argv[]) {
                         if (strncmp(cmd, EXIT_COMMAND, exitCmdLen) == 0
                             && (!cmd[exitCmdLen] || cmd[exitCmdLen] == ' ')
                         ) {
-                            typedExitCommand = true;
                             break;
                         }
 
@@ -1967,17 +1982,16 @@ int main(int argc, char *argv[]) {
 
             //sigintReceived will be true if the user sends SIGINT
             //inside the shell prompt
-            if (sigintReceived || sigchldReceived) {
-                if (sigintReceived) {
-                    printf("\n");
+            if (sigintReceived || ic_pressed_ctrlC || sigchldReceived) {
+                if (sigintReceived || ic_pressed_ctrlC) {
+                    if (sigintReceived) printf("\n");
                     printBgCmdDoneMessageIfExists();
                     printPrompt();
                 }
             } else if (stdinFromTerminal) {
-                if (!typedExitCommand) printf("\n");
                 printf("%s\n", EXIT_COMMAND);
             }
-        } while (sigintReceived || sigchldReceived);
+        } while (sigintReceived || ic_pressed_ctrlC || sigchldReceived);
 
         //Kill any remaining background processes on shell exit
         if (numBackgroundCmds > 0) {
