@@ -1,3 +1,11 @@
+#ifdef __clang__
+#pragma clang diagnostic ignored "-Wformat-nonliteral"
+#endif
+
+#ifdef __GNUC__
+#pragma GCC diagnostic ignored "-Wformat-nonliteral"
+#endif
+
 #include <ctype.h>
 #include <errno.h>
 #include <pwd.h>

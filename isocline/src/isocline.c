@@ -12,6 +12,10 @@
 // You can compile the entire library just as: 
 // $ gcc -c src/isocline.c 
 //-------------------------------------------------------------
+#ifdef __GNUC__
+#pragma GCC diagnostic ignored "-Wunused-function"
+#endif
+
 #if !defined(IC_SEPARATE_OBJS)
 # ifndef _CRT_NONSTDC_NO_WARNINGS
 #  define _CRT_NONSTDC_NO_WARNINGS // for msvc
