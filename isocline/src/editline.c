@@ -939,7 +939,9 @@ static char* edit_line( ic_env_t* env, const char* prompt_text, bool *ctrlC)
       edit_delete_char(env,&eb);     // otherwise it is like delete
     } 
     else if (c == KEY_CTRL_C || c == KEY_EVENT_STOP) {
-      if (c == KEY_CTRL_C) *ctrlC = true;
+      if (c == KEY_CTRL_C) {
+        if (ctrlC != NULL) *ctrlC = true;
+      }
       break; // ctrl+C or STOP event quits with NULL
     }
     else if (c == KEY_ESC) {
@@ -1115,6 +1117,9 @@ static char* edit_line( ic_env_t* env, const char* prompt_text, bool *ctrlC)
   char* res; 
   if ((c == KEY_CTRL_D && sbuf_len(eb.input) == 0) || c == KEY_CTRL_C || c == KEY_EVENT_STOP) {
     res = NULL;
+    if (c == KEY_CTRL_C) {
+      ic_print("^C");
+    }
   }
   else if (!tty_is_utf8(env->tty)) {
     res = sbuf_strdup_from_utf8(eb.input);

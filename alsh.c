@@ -112,17 +112,17 @@ void sigchldHandler(int sig) {
     }
 }
 
-// void sigintHandler(int sig) {
-//     (void) sig;
-//     sigintReceived = true;
-//     if (numBackgroundCmds > 0) {
-//         while (wait(NULL) > 0) {
-//             numBackgroundCmds--;
-//         }
-//     } else {
-//         (void) wait(NULL);
-//     }
-// }
+void sigintHandler(int sig) {
+    (void) sig;
+    sigintReceived = true;
+    if (numBackgroundCmds > 0) {
+        while (wait(NULL) > 0) {
+            numBackgroundCmds--;
+        }
+    } else {
+        (void) wait(NULL);
+    }
+}
 
 /**
  * If any background command complete message exists in bgCmdDoneMessages,
@@ -1794,24 +1794,37 @@ void printIntro(void) {
     printf("Type '%s' to exit.\n\n", EXIT_COMMAND);
 }
 
-void printPrompt(void) {
+char* getPrompt(void) {
     if (getcwd(cwd, CWD_BUFFER_SIZE) == NULL) {
         fprintf(stderr, "%s: Error getting current working directory, exiting shell...\n", SHELL_NAME);
         exit(1);
     }
 
-    //If in home directory, print ~ instead of /home/<username>
-    //Print red prompt if user is root, otherwise print regular prompt
+    //If in home directory, show ~ instead of /home/<username>
+    //Show red prompt if user is root, otherwise show regular prompt
+    char *promptTemplate;
     if (isInHomeDirectory()) {
-        printf(isRootUser()
-            ? "\033[38;5;196;1m%s-root:\033[1;34m~%s\033[0m"
-            : "%s:\033[1;34m~%s\033[0m", SHELL_NAME, (cwd + strlen(getHomeDirectory()))
-        );
+        if (isRootUser()) {
+            promptTemplate = "\033[38;5;196;1m%s-root:\033[1;34m~%s\033[0m# ";
+        } else {
+            promptTemplate = "%s:\033[1;34m~%s\033[0m$ ";
+        }
+
+        size_t sizeNeeded = (size_t) snprintf(NULL, 0, promptTemplate, SHELL_NAME, (cwd + strlen(getHomeDirectory())));
+        char *prompt = emalloc(sizeNeeded + 1);
+        sprintf(prompt, promptTemplate, SHELL_NAME, (cwd + strlen(getHomeDirectory())));
+        return prompt;
     } else {
-        printf(isRootUser()
-            ? "\033[38;5;196;1m%s-root:\033[1;34m%s\033[0m"
-            : "%s:\033[1;34m%s\033[0m", SHELL_NAME, cwd
-        );
+        if (isRootUser()) {
+            promptTemplate = "\033[38;5;196;1m%s-root:\033[1;34m%s\033[0m# ";
+        } else {
+            promptTemplate = "%s:\033[1;34m%s\033[0m$ ";
+        }
+
+        size_t sizeNeeded = (size_t) snprintf(NULL, 0, promptTemplate, SHELL_NAME, cwd);
+        char *prompt = emalloc(sizeNeeded + 1);
+        sprintf(prompt, promptTemplate, SHELL_NAME, cwd);
+        return prompt;
     }
 }
 
@@ -1866,23 +1879,22 @@ int main(int argc, char *argv[]) {
                 (void) processFile(cmd, alshrcfp, processCommand, true);
             }
 
-            // struct sigaction sa1 = {
-            //     .sa_handler = sigintHandler
-            // };
+            struct sigaction sa1 = {
+                .sa_handler = sigintHandler
+            };
             struct sigaction sa2 = {
                 .sa_handler = sigchldHandler
             };
-            //sigemptyset(&sa1.sa_mask);
+            sigemptyset(&sa1.sa_mask);
             sigemptyset(&sa2.sa_mask);
-            //sigaction(SIGINT, &sa1, NULL);
+            sigaction(SIGINT, &sa1, NULL);
             sigaction(SIGCHLD, &sa2, NULL);
 
-            ic_set_prompt_marker("", "");
-            ic_enable_color(false);
+            ic_set_prompt_marker("", "> ");
+            ic_enable_multiline(false);
 
             setvbuf(stdout, NULL, _IONBF, 0);
             printIntro();
-            printPrompt();
         }
 
         //Ignore SIGINT so that the shell doesn't exit when user sends it
@@ -1893,15 +1905,19 @@ int main(int argc, char *argv[]) {
             sigchldReceived = false;
             ic_pressed_ctrlC = false;
             char *input = NULL;
+            char *prompt = NULL;
             while (
                 (stdinFromTerminal
-                ? (input = ic_readline(isRootUser() ? "# " : "$ ", &ic_pressed_ctrlC))
+                ? (input = ic_readline(prompt = getPrompt(), &ic_pressed_ctrlC))
                 : fgets(cmd, COMMAND_BUFFER_SIZE, stdin)) != NULL
             ) {
                 if (input != NULL) {
                     strcpy(cmd, input);
                     free(input);
                     input = NULL;
+                }
+                if (prompt != NULL) {
+                    free(prompt);
                 }
                 printBgCmdDoneMessageIfExists();
                 removeNewlineIfExists(cmd);
@@ -1912,7 +1928,6 @@ int main(int argc, char *argv[]) {
                         int processHistoryStatus = processHistoryExclamations(cmd);
                         switch (processHistoryStatus) {
                             case 0: //History event not found using !n or !-n
-                                printPrompt();
                                 continue;
                             case 1: //History event found using !n or !-n
                                 printf("%s\n", cmd);
@@ -1976,7 +1991,6 @@ int main(int argc, char *argv[]) {
                     if (sigchldReceived) {
                         sigchldReceived = false;
                     }
-                    printPrompt();
                 }
             }
 
@@ -1986,10 +2000,13 @@ int main(int argc, char *argv[]) {
                 if (sigintReceived || ic_pressed_ctrlC) {
                     if (sigintReceived) printf("\n");
                     printBgCmdDoneMessageIfExists();
-                    printPrompt();
                 }
             } else if (stdinFromTerminal) {
                 printf("%s\n", EXIT_COMMAND);
+            }
+
+            if (prompt != NULL) {
+                free(prompt);
             }
         } while (sigintReceived || ic_pressed_ctrlC || sigchldReceived);
 
