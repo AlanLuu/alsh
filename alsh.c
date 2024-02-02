@@ -1926,6 +1926,7 @@ int main(int argc, char *argv[]) {
                 }
                 if (prompt != NULL) {
                     free(prompt);
+                    prompt = NULL;
                 }
                 printBgCmdDoneMessageIfExists();
                 removeNewlineIfExists(cmd);
