@@ -26,6 +26,7 @@
 #include "utils/mathparser.h"
 #include "utils/stringhashmap.h"
 #include "utils/stringlinkedlist.h"
+#include "utils/utils.h"
 
 #define BACKGROUND_CHAR '&'
 #define COMMAND_BUFFER_SIZE 4096
@@ -84,16 +85,6 @@ void clearHistoryElements(void) {
     history.count = 0;
 }
 
-/**
- * Returns the number of digits in a number
-*/
-int numDigits(long num) {
-    if (num < 0) num = -num;
-    int count;
-    for (count = 0; num > 0; count++, num /= 10);
-    return count;
-}
-
 static bool sigintReceived = false;
 static bool sigchldReceived = false;
 static int numSigchldBackground = 0;
@@ -147,21 +138,11 @@ void printBgCmdDoneMessageIfExists(void) {
 }
 
 /**
- * Removes the newline character from the end of a string if it exists
-*/
-void removeNewlineIfExists(char *str) {
-    size_t len = strlen(str);
-    if (len > 0 && str[len - 1] == '\n') {
-        str[len - 1] = '\0';
-    }
-}
-
-/**
  * Splits a string from the first occurrence of delim and returns a StringLinkedList
  * pointer that refers to the first node of the StringLinkedList
  * Remember to free() the returned StringLinkedList
 */
-StringLinkedList* split(char *str, char *delim) {
+StringLinkedList* split(char *str, char *delim, int *status) {
     StringLinkedList *tokens = StringLinkedList_create();
     CharList *strList = CharList_create();
     size_t delimLen = strlen(delim);
@@ -177,6 +158,7 @@ StringLinkedList* split(char *str, char *delim) {
         } else if (!inDoubleQuote && !inSingleQuote && (*tempStr == '(' || *tempStr == ')')) {
             parenthesesNestLevel += *tempStr == '(' ? 1 : -1;
             if (parenthesesNestLevel < 0) {
+                SET_FUNCTION_STATUS(status, -1);
                 fprintf(stderr, "%s: Unexpected closing parentheses\n", SHELL_NAME);
                 StringLinkedList_free(tokens);
                 CharList_free(strList);
@@ -200,6 +182,7 @@ StringLinkedList* split(char *str, char *delim) {
                 } else if (!inDoubleQuote && !inSingleQuote && (*tempStr == '(' || *tempStr == ')')) {
                     parenthesesNestLevel += *tempStr == '(' ? 1 : -1;
                     if (parenthesesNestLevel < 0) {
+                        SET_FUNCTION_STATUS(status, -1);
                         fprintf(stderr, "%s: Unexpected closing parentheses\n", SHELL_NAME);
                         StringLinkedList_free(tokens);
                         CharList_free(strList);
@@ -244,6 +227,7 @@ StringLinkedList* split(char *str, char *delim) {
     }
 
     if (inSingleQuote || inDoubleQuote || parenthesesNestLevel != 0) {
+        SET_FUNCTION_STATUS(status, -1);
         if (parenthesesNestLevel > 0) {
             fprintf(stderr, "%s: Missing closing parentheses\n", SHELL_NAME);
         } else if (parenthesesNestLevel < 0) {
@@ -267,6 +251,7 @@ StringLinkedList* split(char *str, char *delim) {
         } else if (!inDoubleQuote && !inSingleQuote && (*tempStr == '(' || *tempStr == ')')) {
             parenthesesNestLevel += *tempStr == '(' ? 1 : -1;
             if (parenthesesNestLevel < 0) {
+                SET_FUNCTION_STATUS(status, -1);
                 fprintf(stderr, "%s: Unexpected closing parentheses\n", SHELL_NAME);
                 StringLinkedList_free(tokens);
                 CharList_free(strList);
@@ -299,57 +284,6 @@ StringLinkedList* split(char *str, char *delim) {
     StringLinkedList_append(tokens, strListCopy, true);
     CharList_free(strList);
     return tokens;
-}
-
-/**
- * Checks if a string array contains a particular string
- * Length of the array must be passed in to this function
-*/
-bool strArrContains(char **arr, char *str, size_t arrLen) {
-    for (size_t i = 0; i < arrLen; i++) {
-        if (strcmp(str, arr[i]) == 0) {
-            return true;
-        }
-    }
-    return false;
-}
-
-/**
- * Trims whitespace from the beginning and end of a string
- * If the string only contains whitespace, it will be trimmed to an empty string
- * Returns false if the string is empty, true otherwise
-*/
-bool trimWhitespaceFromEnds(char *str) {
-    size_t len = strlen(str);
-    if (len == 0) return false;
-
-    bool hasWhitespace = false;
-    size_t i = 0;
-    if (str[i] == ' ') {
-        hasWhitespace = true;
-        while (str[i] == ' ') {
-            i++;
-        }
-    }
-    size_t j = len - 1;
-    if (j > 0 && str[j] == ' ') {
-        hasWhitespace = true;
-        while (j > 0 && str[j] == ' ') {
-            j--;
-        }
-    }
-
-    if (hasWhitespace) {
-        size_t k = 0;
-        while (i <= j) {
-            str[k] = str[i];
-            i++;
-            k++;
-        }
-        str[k] = '\0';
-    }
-    
-    return true;
 }
 
 /**
@@ -640,7 +574,8 @@ int executeCommand(char *cmd, bool waitForCommand) {
         cmdIndex++;
     }
 
-    StringLinkedList *tokens = split(tempCmd->data, " ");
+    int tokensStatus = 1;
+    StringLinkedList *tokens = split(tempCmd->data, " ", &tokensStatus);
     if (tokens->size == 0) {
         if (*stdinStatus) {
             dup2(stdinStatus[1], STDIN_FILENO);
@@ -655,7 +590,7 @@ int executeCommand(char *cmd, bool waitForCommand) {
         CharList_free(tempCmd);
         StringLinkedList_free(tokens);
         if (processedVars) free(processVarCmd);
-        return 1;
+        return tokensStatus;
     }
 
     bool isBuiltInCommand = false;
@@ -764,7 +699,7 @@ int executeCommand(char *cmd, bool waitForCommand) {
 
             if (strchr(alias, ' ') != NULL) { //Alias value has space
                 char *aliasDup = strdup(alias);
-                StringLinkedList *aliasTokens = split(aliasDup, " ");
+                StringLinkedList *aliasTokens = split(aliasDup, " ", NULL);
                 char **aliasTokensArr = StringLinkedList_toArray(aliasTokens);
                 StringLinkedList_removeIndexAndFreeNode(tokens, 0);
                 for (int i = StringLinkedList_size(aliasTokens) - 1; i >= 0; i--) {
@@ -901,7 +836,7 @@ int executeCommand(char *cmd, bool waitForCommand) {
                     continue;
                 }
 
-                StringLinkedList *varList = split(argStr, "=");
+                StringLinkedList *varList = split(argStr, "=", NULL);
                 char *varKey = varList->head->str;
                 char *varVal = varList->head->next->str;
                 bool replacingLetVal = variables != NULL && StringHashMap_get(variables, varKey) != NULL;
@@ -1060,7 +995,7 @@ int executeCommand(char *cmd, bool waitForCommand) {
                     exitStatus = 1;
                     continue;
                 }
-                StringLinkedList *aliasList = split(argStr, "=");
+                StringLinkedList *aliasList = split(argStr, "=", NULL);
                 char *aliasKey = aliasList->head->str;
                 char *aliasVal = aliasList->head->next->str;
                 char *aliasKeyDup = strdup(aliasKey);
@@ -1239,7 +1174,7 @@ int executeCommand(char *cmd, bool waitForCommand) {
 int processPipeCommands(char *cmd, char *orChr) {
     if (orChr != NULL) {
         char *tempCmd = strdup(cmd);
-        StringLinkedList *tokens = split(tempCmd, "|");
+        StringLinkedList *tokens = split(tempCmd, "|", NULL);
         int terminal_stdin = dup(STDIN_FILENO);
         int terminal_stdout = dup(STDOUT_FILENO);
         int fd[2];
@@ -1298,7 +1233,7 @@ int processOrCommands(char *cmd) {
     char *orChr = strchr(cmd, '|');
     if (orChr != NULL && *(orChr + 1) == '|') {
         char *tempCmd = strdup(cmd);
-        StringLinkedList *tokens = split(tempCmd, "||");
+        StringLinkedList *tokens = split(tempCmd, "||", NULL);
         for (StringNode *temp = tokens->head; temp != NULL; temp = temp->next) {
             trimWhitespaceFromEnds(temp->str);
             if (*temp->str) {
@@ -1321,7 +1256,7 @@ int processAndCommands(char *cmd) {
     char *andChr = strchr(cmd, '&');
     if (andChr != NULL && *(andChr + 1) == '&') {
         char *tempCmd = strdup(cmd);
-        StringLinkedList *tokens = split(tempCmd, "&&");
+        StringLinkedList *tokens = split(tempCmd, "&&", NULL);
         for (StringNode *temp = tokens->head; temp != NULL; temp = temp->next) {
             trimWhitespaceFromEnds(temp->str);
             if (*temp->str) {
@@ -1484,11 +1419,12 @@ int processCommand(char *cmd) {
                 (void) processCommand(counter);
             }
         } else {
+            int cmdStatus = 0;
             while (ifCond) {
-                if (sigintReceived || status < 0) {
+                if (sigintReceived || status < 0 || cmdStatus < 0) {
                     break;
                 }
-                (void) processCommand(counter);
+                cmdStatus = processCommand(counter);
                 status = processCommand(testCmd);
                 ifCond = (!negate && status == 0) || (negate && status != 0);
             }
@@ -1617,7 +1553,7 @@ int processCommand(char *cmd) {
     char *semicolonChr = strchr(cmd, ';');
     if (semicolonChr != NULL) {
         char *tempCmd = strdup(cmd);
-        StringLinkedList *tokens = split(tempCmd, ";");
+        StringLinkedList *tokens = split(tempCmd, ";", NULL);
         for (StringNode *temp = tokens->head; temp != NULL; temp = temp->next) {
             trimWhitespaceFromEnds(temp->str);
             (void) processAndCommands(temp->str);

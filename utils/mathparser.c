@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "utils.h"
 
 #define MATH_PARSER_OK 0
 #define MATH_PARSER_DIVIDE_ZERO 1
@@ -38,7 +39,7 @@ double parsePostfixExpr(char *postfixExpr, int *status) {
             if (token == '.') {
                 numDecimalPoints++;
                 if (numDecimalPoints > 1) {
-                    *status = MATH_PARSER_PARSE_ERROR;
+                    SET_FUNCTION_STATUS(status, MATH_PARSER_PARSE_ERROR);
                     DoubleList_free(output);
                     CharList_free(temp);
                     return 0;
@@ -64,7 +65,7 @@ double parsePostfixExpr(char *postfixExpr, int *status) {
         } else if (MathParser_isAnyOperator(token)) {
             double second = DoubleList_pop(output);
             if (output->size <= 0) {
-                *status = MATH_PARSER_PARSE_ERROR;
+                SET_FUNCTION_STATUS(status, MATH_PARSER_PARSE_ERROR);
                 DoubleList_free(output);
                 CharList_free(temp);
                 return 0;
@@ -83,7 +84,7 @@ double parsePostfixExpr(char *postfixExpr, int *status) {
                     break;
                 case '/':
                     if (second == 0) {
-                        *status = MATH_PARSER_DIVIDE_ZERO;
+                        SET_FUNCTION_STATUS(status, MATH_PARSER_DIVIDE_ZERO);
                         DoubleList_free(output);
                         CharList_free(temp);
                         return 0;
@@ -111,7 +112,7 @@ double parsePostfixExpr(char *postfixExpr, int *status) {
         result = DoubleList_peek(output);
     }
 
-    *status = MATH_PARSER_OK;
+    SET_FUNCTION_STATUS(status, MATH_PARSER_OK);
     DoubleList_free(output);
     CharList_free(temp);
     return result;
@@ -219,25 +220,19 @@ bool MathParser_printErrMsg(int parseStatus, char *shellName) {
 double MathParser_parse(char *expression, int *parseStatus) {
     char *postfixExpr = infixToPostfix(expression);
     if (postfixExpr == NULL) {
-        if (parseStatus != NULL) {
-            *parseStatus = MATH_PARSER_UNEXPECTED_CHAR;
-        }
+        SET_FUNCTION_STATUS(parseStatus, MATH_PARSER_UNEXPECTED_CHAR);
         return 0;
     }
 
     int status;
     double result = parsePostfixExpr(postfixExpr, &status);
     if (status != MATH_PARSER_OK) {
-        if (parseStatus != NULL) {
-            *parseStatus = status;
-        }
+        SET_FUNCTION_STATUS(parseStatus, status);
         free(postfixExpr);
         return 0;
     }
 
-    if (parseStatus != NULL) {
-        *parseStatus = MATH_PARSER_OK;
-    }
+    SET_FUNCTION_STATUS(parseStatus, MATH_PARSER_OK);
     free(postfixExpr);
     return result;
 }
