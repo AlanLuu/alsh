@@ -1809,7 +1809,7 @@ int main(int argc, char *argv[]) {
             if (historyfp != NULL) {
                 (void) processFile(cmd, historyfp, addCommandToHistory, true);
             }
-
+#ifndef DEBUG
             //Total of 47 characters for /home/<username>/.alshrc
             //Maximum of 32 characters for <username>
             //7 characters for /home//
@@ -1822,7 +1822,7 @@ int main(int argc, char *argv[]) {
             if (alshrcfp != NULL) {
                 (void) processFile(cmd, alshrcfp, processCommand, true);
             }
-
+#endif
             struct sigaction sa1 = {
                 .sa_handler = sigintHandler
             };
