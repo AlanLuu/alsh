@@ -50,6 +50,8 @@ static char *executablePath; //Path to where the current alsh shell executable i
 static bool isBackgroundCmd = false; //Did the user run a command in the background?
 static int numBackgroundCmds = 0; //Number of background commands running
 static struct passwd *pwd; //User info
+static bool testCmdNotExist = false; //Does the '[' command exist?
+static bool testCmdNotExistIsSet = false; //Is testCmdNotExist set yet?
 static StringHashMap *variables; //Stores user-defined variables
 
 extern char **environ;
@@ -471,10 +473,10 @@ int* handleRedirectStdin(char *cmd) {
 }
 
 int processCommand(char *cmd);
-char* processVariables(char *cmd);
+char* processVariables(char *cmd, bool *hasUndefinedVars);
 int executeCommand(char *cmd, bool waitForCommand) {
     char *processVarCmd = NULL;
-    if (cmd == NULL || !*cmd || (processVarCmd = processVariables(cmd)) == NULL) {
+    if (cmd == NULL || !*cmd || (processVarCmd = processVariables(cmd, NULL)) == NULL) {
         return 1;
     }
 
@@ -719,7 +721,7 @@ int executeCommand(char *cmd, bool waitForCommand) {
                     head->strMustBeFreed = mustBeFreed[1];
                     free(mustBeFreed);
                 } else {
-                    //Shouldn't happen
+                    //Should not happen
                     head->str = strdup(alias);
                 }
             }
@@ -1307,38 +1309,65 @@ int processCommand(char *cmd) {
         while (*counter == ' ') {
             counter++;
         }
-        if (*counter != '(') {
-            if (!*counter) {
-                fprintf(stderr, "%s: syntax error: unexpected end of input, expected '('\n", SHELL_NAME);
-            } else {
+
+        char openBracket = *counter;
+        if (openBracket == '[' && !testCmdNotExistIsSet) {
+            testCmdNotExist = processCommand("[ 1 -eq 1 ] 2> /dev/null") != 0;
+            testCmdNotExistIsSet = true;
+        }
+        if ((openBracket != '(' && openBracket != '[') || (openBracket == '[' && testCmdNotExist)) {
+            if (openBracket == '\0') {
+                if (testCmdNotExist) {
+                    fprintf(stderr, "%s: syntax error: unexpected end of input, expected '('\n", SHELL_NAME);
+                } else {
+                    fprintf(stderr, "%s: syntax error: unexpected end of input, expected '(' or '['\n", SHELL_NAME);
+                }
+            } else if (testCmdNotExist) {
                 fprintf(stderr, "%s: syntax error: unexpected token '%c', expected '('\n", SHELL_NAME, *counter);
+            } else {
+                fprintf(stderr, "%s: syntax error: unexpected token '%c', expected '(' or '['\n", SHELL_NAME, *counter);
             }
             return -1;
         }
 
-        do {
-            counter++;
-        } while (*counter == ' ');
+        char closeBracket;
+        switch (openBracket) {
+            case '(': {
+                do {
+                    counter++;
+                } while (*counter == ' ');
+                
+                closeBracket = ')';
+                break;
+            }
+            default: {
+                closeBracket = ']';
+                break;
+            }
+        }
 
         CharList *testCmdList = CharList_create();
-        int nestLevel = 1;
+        int nestLevel = openBracket == '(';
         bool negate = false;
         do {
-            if (*counter == '(') {
+            if (*counter == openBracket) {
                 nestLevel++;
-            } else if (*counter == ')') {
-                if (testCmdList->size == 0) {
-                    fprintf(stderr, "%s: syntax error: unexpected token ')'\n", SHELL_NAME);
+            } else if (*counter == closeBracket) {
+                if (testCmdList->size == 0 || (closeBracket == ']' && testCmdList->size == 1)) {
+                    fprintf(stderr, "%s: syntax error: unexpected token '%c'\n", SHELL_NAME, closeBracket);
                     CharList_free(testCmdList);
                     return -1;
                 } else {
+                    if (closeBracket == ']') {
+                        CharList_add(testCmdList, *counter);
+                    }
                     nestLevel--;
                 }
             } else if (!*counter) {
                 if (testCmdList->size == 0) {
                     fprintf(stderr, "%s: syntax error: unexpected end of input, expected test condition\n", SHELL_NAME);
                 } else {
-                    fprintf(stderr, "%s: syntax error: unexpected end of input, expected ')'\n", SHELL_NAME);
+                    fprintf(stderr, "%s: syntax error: unexpected end of input, expected '%c'\n", SHELL_NAME, closeBracket);
                 }
                 CharList_free(testCmdList);
                 return -1;
@@ -1360,21 +1389,122 @@ int processCommand(char *cmd) {
         while (*counter == ' ') {
             counter++;
         }
-        if (!*counter) {
-            fprintf(stderr, "%s: syntax error: unexpected end of input, expected command after '%s'\n", SHELL_NAME, cmd);
-            CharList_free(testCmdList);
-            return -1;
+
+        int status;
+        char *testCmd;
+        switch (openBracket) {
+            case '(': {
+                if (!*counter) {
+                    fprintf(stderr, "%s: syntax error: unexpected end of input, expected command after '%s'\n", SHELL_NAME, cmd);
+                    CharList_free(testCmdList);
+                    return -1;
+                }
+
+                testCmd = CharList_toStr(testCmdList);
+                trimWhitespaceFromEnds(testCmd);
+                status = processCommand(testCmd);
+                break;
+            }
+            default: {
+                testCmd = CharList_toStr(testCmdList);
+                trimWhitespaceFromEnds(testCmd);
+
+                CharList *testCmdCopyList = CharList_create();
+                CharList_addStr(testCmdCopyList, testCmd);
+                CharList_addStr(testCmdCopyList, " 2>&1");
+
+                char *testCmdCopy = CharList_toStr(testCmdCopyList);
+                CharList_free(testCmdCopyList);
+                if (strchr(testCmdCopy, '$') != NULL) {
+                    bool hasUndefinedVars = false;
+                    char *testCmdCopyProcessedVars = processVariables(testCmdCopy, &hasUndefinedVars);
+                    free(testCmdCopy);
+                    testCmdCopy = testCmdCopyProcessedVars;
+                    if (hasUndefinedVars) {
+                        free(testCmdCopyProcessedVars);
+                        CharList_free(testCmdList);
+                        free(testCmd);
+                        return -1;
+                    }
+                }
+                if (strchr(testCmdCopy, '(') != NULL) {
+                    CharList *finalStrList = CharList_create();
+                    CharList *exprList = CharList_create();
+                    char *testCmdCopyPtr = testCmdCopy;
+                    while (*testCmdCopyPtr) {
+                        if (*testCmdCopyPtr == '(') {
+                            int exprNestLevel = 1;
+                            while (*++testCmdCopyPtr) {
+                                if (*testCmdCopyPtr == '(') {
+                                    exprNestLevel++;
+                                } else if (*testCmdCopyPtr == ')') {
+                                    exprNestLevel--;
+                                } else if (!*testCmdCopyPtr) {
+                                    fprintf(stderr, "%s: Missing closing parentheses\n", SHELL_NAME);
+                                    CharList_free(finalStrList);
+                                    CharList_free(exprList);
+                                    CharList_free(testCmdList);
+                                    free(testCmdCopy);
+                                    free(testCmd);
+                                    return -1;
+                                }
+                                if (exprNestLevel <= 0) break;
+                                CharList_add(exprList, *testCmdCopyPtr);
+                            }
+                            char *expr = CharList_toStr(exprList);
+                            trimWhitespaceFromEnds(expr);
+                            int parseStatus;
+                            double result = MathParser_parse(expr, &parseStatus);
+                            free(expr);
+                            if (MATH_PARSER_ERR_MSG(parseStatus)) {
+                                CharList_free(finalStrList);
+                                CharList_free(exprList);
+                                CharList_free(testCmdList);
+                                free(testCmdCopy);
+                                free(testCmd);
+                                return -1;
+                            }
+                            char *newStr = emalloc(sizeof(char) * 100);
+                            sprintf(newStr, "%g", result);
+                            CharList_addStr(finalStrList, newStr);
+                            free(newStr);
+                            CharList_clear(exprList);
+                        } else {
+                            CharList_add(finalStrList, *testCmdCopyPtr);
+                        }
+                        testCmdCopyPtr++;
+                    }
+                    CharList_free(exprList);
+                    char *finalStr = CharList_toStr(finalStrList);
+                    CharList_free(finalStrList);
+                    free(testCmdCopy);
+                    testCmdCopy = finalStr;
+                }
+                FILE *fp = popen(testCmdCopy, "r");
+                if (fp == NULL) { //Should not happen
+                    fprintf(stderr, "%s: an internal problem occurred when executing the command '%s'\n", SHELL_NAME, testCmd);
+                    fprintf(stderr, "Please report this to the developer of this shell.\n");
+                    CharList_free(testCmdList);
+                    free(testCmd);
+                    free(testCmdCopy);
+                    return -1;
+                }
+                char buf[2];
+                if (fgets(buf, 2, fp) != NULL) {
+                    fprintf(stderr, "%s: syntax error: invalid test command '%s'\n", SHELL_NAME, testCmd);
+                    CharList_free(testCmdList);
+                    free(testCmd);
+                    free(testCmdCopy);
+                    pclose(fp);
+                    return -1;
+                }
+                free(testCmdCopy);
+
+                status = pclose(fp);
+                break;
+            }
         }
 
-        char *testCmd = CharList_toStr(testCmdList);
-        if (!*testCmd) {
-            fprintf(stderr, "%s: syntax error: unexpected token ')'\n", SHELL_NAME);
-            CharList_free(testCmdList);
-            return -1;
-        }
-
-        trimWhitespaceFromEnds(testCmd);
-        int status = processCommand(testCmd);
         bool ifCond = (!negate && status == 0) || (negate && status != 0);
         if (isIfStatement) {
             const char *const elseStatement = "else";
@@ -1501,7 +1631,7 @@ int processCommand(char *cmd) {
             char *expr = CharList_toStr(exprList);
             if (CharList_contains(exprList, VARIABLE_PREFIX)) {
                 char *oldExpr = expr;
-                expr = processVariables(oldExpr);
+                expr = processVariables(oldExpr, NULL);
                 free(oldExpr);
             }
             CharList_free(exprList);
@@ -1668,7 +1798,7 @@ int processHistoryExclamations(char *cmd) {
     return -1;
 }
 
-char* processVariables(char *cmd) {
+char* processVariables(char *cmd, bool *hasUndefinedVars) {
     if (strchr(cmd, VARIABLE_PREFIX) != NULL && cmd[1]) {
         CharList *tempCmd = CharList_create();
         bool inParentheses = false;
@@ -1718,6 +1848,9 @@ char* processVariables(char *cmd) {
                     CharList_free(varNameList);
                     CharList_free(tempCmd);
                     return NULL;
+                } else if (hasUndefinedVars != NULL) {
+                    SET_FUNCTION_STATUS(hasUndefinedVars, true);
+                    fprintf(stderr, "%s: name error: %s is not defined\n", SHELL_NAME, varKey);
                 }
                 CharList_free(varNameList);
             } else {

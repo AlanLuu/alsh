@@ -67,8 +67,20 @@ def main():
     }
     tests_passed = 0
     tests_failed = 0
+    tests_skipped = 0
+    test_cmd_not_exist = False
+    test_cmd_not_exist_is_set = False
     for key, val in test_cases.items():
         if key:
+            matching_keywords = ["if", "while"]
+            if re.match(rf"({'|'.join(matching_keywords)})[ ]*\[", key):
+                if not test_cmd_not_exist_is_set:
+                    test_cmd_not_exist = subprocess.run("[ 1 -eq 1 ]", shell=True, stderr=subprocess.DEVNULL).returncode
+                    test_cmd_not_exist_is_set = True
+                
+                if test_cmd_not_exist:
+                    tests_skipped += 1
+                    continue
             print(f'Testing "{key}"')
         else:
             print("Testing empty command")
@@ -107,7 +119,7 @@ def main():
         
         print()
     
-    total_test_cases = len(test_cases)
+    total_test_cases = len(test_cases) - tests_skipped
     if tests_passed == total_test_cases:
         print_green("All test cases passed")
         print(f"Total test cases: {total_test_cases}")
