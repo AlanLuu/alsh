@@ -1389,17 +1389,16 @@ int processCommand(char *cmd) {
         while (*counter == ' ') {
             counter++;
         }
+        if (!*counter) {
+            fprintf(stderr, "%s: syntax error: unexpected end of input, expected command after '%s'\n", SHELL_NAME, cmd);
+            CharList_free(testCmdList);
+            return -1;
+        }
 
         int status;
         char *testCmd;
         switch (openBracket) {
             case '(': {
-                if (!*counter) {
-                    fprintf(stderr, "%s: syntax error: unexpected end of input, expected command after '%s'\n", SHELL_NAME, cmd);
-                    CharList_free(testCmdList);
-                    return -1;
-                }
-
                 testCmd = CharList_toStr(testCmdList);
                 trimWhitespaceFromEnds(testCmd);
                 status = processCommand(testCmd);
