@@ -473,6 +473,7 @@ int* handleRedirectStdin(char *cmd) {
 }
 
 int processCommand(char *cmd);
+char* processMathExpressions(char *cmd, bool *seenOtherChr);
 char* processVariables(char *cmd, bool *hasUndefinedVars);
 int executeCommand(char *cmd, bool waitForCommand) {
     char *processVarCmd = NULL;
@@ -608,68 +609,35 @@ int executeCommand(char *cmd, bool waitForCommand) {
                 StringLinkedList_removeIndexAndFreeNode(tokens, tempNodeIndex);
             }
             StringLinkedList_removeIndexAndFreeNode(tokens, tempNodeIndex);
-        } else if (strchr(strToRemove, '(') != NULL && temp->strMustBeFreed) {
-            CharList *finalStrList = CharList_create();
-            CharList *exprList = CharList_create();
+        } else if (temp->strMustBeFreed) {
             bool seenOtherChr = false;
-            char *strToRemovePtr = strToRemove;
-            while (*strToRemovePtr) {
-                if (*strToRemovePtr == '(') {
-                    int nestLevel = 1;
-                    while (*++strToRemovePtr) {
-                        if (*strToRemovePtr == '(') {
-                            nestLevel++;
-                        } else if (*strToRemovePtr == ')') {
-                            nestLevel--;
-                        }
-                        if (nestLevel <= 0) break;
-                        CharList_add(exprList, *strToRemovePtr);
-                    }
-                    char *expr = CharList_toStr(exprList);
-                    trimWhitespaceFromEnds(expr);
-                    int parseStatus;
-                    double result = MathParser_parse(expr, &parseStatus);
-                    free(expr);
-                    if (MATH_PARSER_ERR_MSG(parseStatus)) {
-                        if (*stdinStatus) {
-                            dup2(stdinStatus[1], STDIN_FILENO);
-                            close(stdinStatus[1]);
-                        }
-                        if (*stdoutStatus) {
-                            dup2(stdoutStatus[1], stdoutStatus[2]);
-                            close(stdoutStatus[1]);
-                        }
-                        free(stdinStatus);
-                        free(stdoutStatus);
-                        CharList_free(tempCmd);
-                        StringLinkedList_free(tokens);
-                        if (processedVars) free(processVarCmd);
-                        CharList_free(finalStrList);
-                        CharList_free(exprList);
-                        return 1;
-                    }
-                    char *newStr = emalloc(sizeof(char) * 100);
-                    sprintf(newStr, "%g", result);
-                    CharList_addStr(finalStrList, newStr);
-                    free(newStr);
-                    CharList_clear(exprList);
-                } else {
-                    if (!seenOtherChr && !isdigit(*strToRemovePtr)) {
-                        seenOtherChr = true;
-                    }
-                    CharList_add(finalStrList, *strToRemovePtr);
+            char *finalStr = processMathExpressions(strToRemove, &seenOtherChr);
+            if (finalStr == NULL) {
+                if (*stdinStatus) {
+                    dup2(stdinStatus[1], STDIN_FILENO);
+                    close(stdinStatus[1]);
                 }
-                strToRemovePtr++;
+                if (*stdoutStatus) {
+                    dup2(stdoutStatus[1], stdoutStatus[2]);
+                    close(stdoutStatus[1]);
+                }
+                free(stdinStatus);
+                free(stdoutStatus);
+                CharList_free(tempCmd);
+                StringLinkedList_free(tokens);
+                if (processedVars) free(processVarCmd);
+                return 1;
             }
-            char *finalStr = CharList_toStr(finalStrList);
-            CharList_free(finalStrList);
-            CharList_free(exprList);
-            free(temp->str);
-            temp->str = finalStr;
-            temp = temp->next;
-            if (temp == NULL && tempNodeIndex == 0 && !seenOtherChr) {
-                printf("%s\n", finalStr);
-                isBuiltInCommand = true;
+            if (finalStr != strToRemove) {
+                free(temp->str);
+                temp->str = finalStr;
+                temp = temp->next;
+                if (temp == NULL && tempNodeIndex == 0 && !seenOtherChr) {
+                    printf("%s\n", finalStr);
+                    isBuiltInCommand = true;
+                }
+            } else {
+                temp = temp->next;
             }
             tempNodeIndex++;
         } else {
@@ -1414,71 +1382,33 @@ int processCommand(char *cmd) {
 
                 char *testCmdCopy = CharList_toStr(testCmdCopyList);
                 CharList_free(testCmdCopyList);
-                if (strchr(testCmdCopy, '$') != NULL) {
-                    bool hasUndefinedVars = false;
-                    char *testCmdCopyProcessedVars = processVariables(testCmdCopy, &hasUndefinedVars);
+
+                bool hasUndefinedVars = false;
+                char *testCmdCopyProcessedVars = processVariables(testCmdCopy, &hasUndefinedVars);
+                if (hasUndefinedVars) {
+                    free(testCmdCopyProcessedVars);
+                    CharList_free(testCmdList);
+                    free(testCmdCopy);
+                    free(testCmd);
+                    return -1;
+                }
+                if (testCmdCopyProcessedVars != testCmdCopy) {
                     free(testCmdCopy);
                     testCmdCopy = testCmdCopyProcessedVars;
-                    if (hasUndefinedVars) {
-                        free(testCmdCopyProcessedVars);
-                        CharList_free(testCmdList);
-                        free(testCmd);
-                        return -1;
-                    }
                 }
-                if (strchr(testCmdCopy, '(') != NULL) {
-                    CharList *finalStrList = CharList_create();
-                    CharList *exprList = CharList_create();
-                    char *testCmdCopyPtr = testCmdCopy;
-                    while (*testCmdCopyPtr) {
-                        if (*testCmdCopyPtr == '(') {
-                            int exprNestLevel = 1;
-                            while (*++testCmdCopyPtr) {
-                                if (*testCmdCopyPtr == '(') {
-                                    exprNestLevel++;
-                                } else if (*testCmdCopyPtr == ')') {
-                                    exprNestLevel--;
-                                } else if (!*testCmdCopyPtr) {
-                                    fprintf(stderr, "%s: Missing closing parentheses\n", SHELL_NAME);
-                                    CharList_free(finalStrList);
-                                    CharList_free(exprList);
-                                    CharList_free(testCmdList);
-                                    free(testCmdCopy);
-                                    free(testCmd);
-                                    return -1;
-                                }
-                                if (exprNestLevel <= 0) break;
-                                CharList_add(exprList, *testCmdCopyPtr);
-                            }
-                            char *expr = CharList_toStr(exprList);
-                            trimWhitespaceFromEnds(expr);
-                            int parseStatus;
-                            double result = MathParser_parse(expr, &parseStatus);
-                            free(expr);
-                            if (MATH_PARSER_ERR_MSG(parseStatus)) {
-                                CharList_free(finalStrList);
-                                CharList_free(exprList);
-                                CharList_free(testCmdList);
-                                free(testCmdCopy);
-                                free(testCmd);
-                                return -1;
-                            }
-                            char *newStr = emalloc(sizeof(char) * 100);
-                            sprintf(newStr, "%g", result);
-                            CharList_addStr(finalStrList, newStr);
-                            free(newStr);
-                            CharList_clear(exprList);
-                        } else {
-                            CharList_add(finalStrList, *testCmdCopyPtr);
-                        }
-                        testCmdCopyPtr++;
-                    }
-                    CharList_free(exprList);
-                    char *finalStr = CharList_toStr(finalStrList);
-                    CharList_free(finalStrList);
+
+                char *mathStr = processMathExpressions(testCmdCopy, NULL);
+                if (mathStr == NULL) {
+                    CharList_free(testCmdList);
                     free(testCmdCopy);
-                    testCmdCopy = finalStr;
+                    free(testCmd);
+                    return -1;
                 }
+                if (mathStr != testCmdCopy) {
+                    free(testCmdCopy);
+                    testCmdCopy = mathStr;
+                }
+
                 FILE *fp = popen(testCmdCopy, "r");
                 if (fp == NULL) { //Should not happen
                     fprintf(stderr, "%s: an internal problem occurred when executing the command '%s'\n", SHELL_NAME, testCmd);
@@ -1795,6 +1725,61 @@ int processHistoryExclamations(char *cmd) {
     }
 
     return -1;
+}
+
+char* processMathExpressions(char *cmd, bool *seenOtherChr) {
+    if (strchr(cmd, '(') != NULL) {
+        CharList *finalStrList = CharList_create();
+        CharList *exprList = CharList_create();
+        char *cmdPtr = cmd;
+        while (*cmdPtr) {
+            if (*cmdPtr == '(') {
+                int exprNestLevel = 1;
+                while (*++cmdPtr) {
+                    if (*cmdPtr == '(') {
+                        exprNestLevel++;
+                    } else if (*cmdPtr == ')') {
+                        exprNestLevel--;
+                    } else if (!*cmdPtr) {
+                        fprintf(stderr, "%s: Missing closing parentheses\n", SHELL_NAME);
+                        CharList_free(finalStrList);
+                        CharList_free(exprList);
+                        return NULL;
+                    }
+                    if (exprNestLevel <= 0) break;
+                    CharList_add(exprList, *cmdPtr);
+                }
+                char *expr = CharList_toStr(exprList);
+                trimWhitespaceFromEnds(expr);
+                int parseStatus;
+                double result = MathParser_parse(expr, &parseStatus);
+                free(expr);
+                if (MATH_PARSER_ERR_MSG(parseStatus)) {
+                    CharList_free(finalStrList);
+                    CharList_free(exprList);
+                    return NULL;
+                }
+                char *newStr = emalloc(sizeof(char) * 100);
+                sprintf(newStr, "%g", result);
+                CharList_addStr(finalStrList, newStr);
+                free(newStr);
+                CharList_clear(exprList);
+            } else {
+                if (seenOtherChr != NULL && !*seenOtherChr && !isdigit(*cmdPtr)) {
+                    *seenOtherChr = true;
+                }
+                CharList_add(finalStrList, *cmdPtr);
+            }
+            cmdPtr++;
+        }
+
+        char *finalStr = CharList_toStr(finalStrList);
+        CharList_free(finalStrList);
+        CharList_free(exprList);
+        return finalStr;
+    }
+
+    return cmd;
 }
 
 char* processVariables(char *cmd, bool *hasUndefinedVars) {
