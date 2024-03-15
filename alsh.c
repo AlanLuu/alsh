@@ -1039,6 +1039,7 @@ int executeCommand(char *cmd, bool waitForCommand) {
             switch (flagChr) {
                 case 'c':
                     clearHistoryElements();
+                    ic_history_clear();
                     break;
                 case 'w': {
                     //Total of 52 characters for /home/<username>/.alsh_history
@@ -1922,9 +1923,18 @@ int main(int argc, char *argv[]) {
             char historyFile[7 + USERNAME_MAX_LENGTH + 13 + 1];
             strcpy(historyFile, getHomeDirectory());
             strcat(historyFile, "/" HISTORY_FILE_NAME);
+            ic_set_history(historyFile, -1);
             FILE *historyfp = fopen(historyFile, "r");
             if (historyfp != NULL) {
-                (void) processFile(cmd, historyfp, addCommandToHistory, true);
+                while (fgets(cmd, COMMAND_BUFFER_SIZE, historyfp) != NULL) {
+                    removeNewlineIfExists(cmd);
+                    bool trimSuccess = trimWhitespaceFromEnds(cmd);
+                    if (*cmd && *cmd != COMMENT_CHAR && trimSuccess) {
+                        (void) addCommandToHistory(cmd);
+                        ic_history_add(cmd);
+                    }
+                }
+                fclose(historyfp);
             }
 #ifndef DEBUG
             //Total of 47 characters for /home/<username>/.alshrc
