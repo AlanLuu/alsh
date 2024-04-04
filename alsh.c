@@ -2086,6 +2086,7 @@ int main(int argc, char *argv[]) {
         if (numBackgroundCmds > 0) {
             signal(SIGTERM, SIG_IGN);
             kill(0, SIGTERM);
+            while (wait(NULL) > 0);
         }
 
         if (bgCmdDoneMessages != NULL) {
