@@ -54,6 +54,6 @@ bool trimWhitespaceFromEnds(char *str) {
         }
         str[k] = '\0';
     }
-    
+
     return true;
 }

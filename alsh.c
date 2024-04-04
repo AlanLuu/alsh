@@ -164,7 +164,7 @@ StringLinkedList* split(char *str, char *delim, int *status) {
                 fprintf(stderr, "%s: Unexpected closing parentheses\n", SHELL_NAME);
                 StringLinkedList_free(tokens);
                 CharList_free(strList);
-                
+
                 StringLinkedList *emptyTokens = StringLinkedList_create();
                 return emptyTokens;
             }
@@ -188,7 +188,7 @@ StringLinkedList* split(char *str, char *delim, int *status) {
                         fprintf(stderr, "%s: Unexpected closing parentheses\n", SHELL_NAME);
                         StringLinkedList_free(tokens);
                         CharList_free(strList);
-                        
+
                         StringLinkedList *emptyTokens = StringLinkedList_create();
                         return emptyTokens;
                     }
@@ -239,7 +239,7 @@ StringLinkedList* split(char *str, char *delim, int *status) {
         }
         StringLinkedList_free(tokens);
         CharList_free(strList);
-        
+
         StringLinkedList *emptyTokens = StringLinkedList_create();
         return emptyTokens;
     }
@@ -257,7 +257,7 @@ StringLinkedList* split(char *str, char *delim, int *status) {
                 fprintf(stderr, "%s: Unexpected closing parentheses\n", SHELL_NAME);
                 StringLinkedList_free(tokens);
                 CharList_free(strList);
-                
+
                 StringLinkedList *emptyTokens = StringLinkedList_create();
                 return emptyTokens;
             }
@@ -278,10 +278,10 @@ StringLinkedList* split(char *str, char *delim, int *status) {
                 CharList_add(strList, *tempStr);
                 break;
         }
-        
+
         tempStr++;
     }
-    
+
     char *strListCopy = CharList_toStr(strList);
     StringLinkedList_append(tokens, strListCopy, true);
     CharList_free(strList);
@@ -291,7 +291,7 @@ StringLinkedList* split(char *str, char *delim, int *status) {
 /**
  * Executes a function specified by the processLine function pointer
  * on each line from the file referred to by fp
- * 
+ *
  * Returns the status of the last command executed from the file
 */
 int processFile(char *cmd, FILE *fp, int (*processLine)(char*), bool closefp) {
@@ -378,7 +378,7 @@ int* handleRedirectStdout(char *cmd) {
             } else {
                 status[2] = STDOUT_FILENO;
             }
-            
+
             FILE *fp = fopen(fileName, fopenMode);
             dup2(fileno(fp), status[2]);
             fclose(fp);
@@ -501,7 +501,7 @@ int executeCommand(char *cmd, bool waitForCommand) {
         if (processedVars) free(processVarCmd);
         return 1;
     }
-    
+
     int exitStatus = 0;
     CharList *tempCmd = CharList_create();
     bool inSingleQuote = false;
@@ -1125,7 +1125,7 @@ int executeCommand(char *cmd, bool waitForCommand) {
             exitStatus = 1;
         }
     }
-    
+
     if (*stdinStatus) {
         dup2(stdinStatus[1], STDIN_FILENO);
         close(stdinStatus[1]);
@@ -1305,7 +1305,7 @@ int processCommand(char *cmd) {
                 do {
                     counter++;
                 } while (*counter == ' ');
-                
+
                 closeBracket = ')';
                 break;
             }
@@ -1351,10 +1351,10 @@ int processCommand(char *cmd) {
             } else if (nestLevel > 0) {
                 CharList_add(testCmdList, *counter);
             }
-            
+
             counter++;
         } while (nestLevel > 0);
-        
+
         while (*counter == ' ') {
             counter++;
         }
@@ -1648,7 +1648,7 @@ int processHistoryExclamations(char *cmd) {
     if (strchr(cmd, '!') != NULL) {
         CharList *tempCmd = CharList_create();
         char *cmdCounter = cmd;
-        
+
         while (*cmdCounter) {
             if (*cmdCounter == '!') {
                 if (!*(cmdCounter + 1)) {
@@ -1842,7 +1842,7 @@ char* processVariables(char *cmd, bool *hasUndefinedVars) {
                 CharList_add(tempCmd, *cmdCounter++);
             }
         }
-        
+
         char *newCmd = CharList_toStr(tempCmd);
         CharList_free(tempCmd);
         return newCmd;
@@ -1900,7 +1900,7 @@ int main(int argc, char *argv[]) {
         free(cmd);
         exit(1);
     }
-    
+
     if (argc > 1) {
         FILE *fp = fopen(argv[1], "r");
         if (fp == NULL) {
@@ -2024,7 +2024,7 @@ int main(int argc, char *argv[]) {
                             if (bgCmdDoneMessages == NULL) {
                                 bgCmdDoneMessages = StringLinkedList_create();
                             }
-                            
+
                             cmd[--cmdLen] = '\0';
                             while (cmd[--cmdLen] == ' ') {
                                 cmd[cmdLen] = '\0';

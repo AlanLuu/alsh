@@ -16,7 +16,7 @@ class ANSI:
     @staticmethod
     def green(s):
         return f"\033[32m{s}\033[0m"
-    
+
     @staticmethod
     def red(s):
         return f"\033[31m{s}\033[0m"
@@ -43,12 +43,12 @@ def main():
         if shutil.which("make") is None:
             eprint("Error: could not find \"make\" in PATH")
             sys.exit(1)
-        
+
         make_exit_code = subprocess.run("make", shell=True).returncode
         if make_exit_code != 0:
             eprint(f"Error: failed to compile {SHELL_NAME}")
             sys.exit(1)
-    
+
     tests_file = Path(f"./{TESTS_FILE_NAME}")
     try:
         with tests_file.open() as f:
@@ -56,7 +56,7 @@ def main():
     except FileNotFoundError:
         eprint(f"Error: could not find {TESTS_FILE_NAME}")
         sys.exit(1)
-    
+
     print_green = print_wrap(ANSI.green)
     print_red = eprint_wrap(ANSI.red)
     regexes = {
@@ -77,19 +77,19 @@ def main():
                 if not test_cmd_not_exist_is_set:
                     test_cmd_not_exist = subprocess.run("[ 1 -eq 1 ]", shell=True, stderr=subprocess.DEVNULL).returncode
                     test_cmd_not_exist_is_set = True
-                
+
                 if test_cmd_not_exist:
                     tests_skipped += 1
                     continue
             print(f'Testing "{key}"')
         else:
             print("Testing empty command")
-        
+
         expected_output_key = key
         for pattern, repl in regexes.items():
             if re.match(pattern, expected_output_key):
                 expected_output_key = re.sub(pattern, repl, expected_output_key)
-        
+
         expected_output = subprocess.run(
             expected_output_key,
             shell=True,
@@ -116,9 +116,9 @@ def main():
             print_red("Test case failed")
             test_output = test_output.replace("\n", "\\n")
             print_red(f'Actual output: "{test_output}"')
-        
+
         print()
-    
+
     total_test_cases = len(test_cases) - tests_skipped
     if tests_passed == total_test_cases:
         print_green("All test cases passed")

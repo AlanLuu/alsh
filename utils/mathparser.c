@@ -159,7 +159,7 @@ char* infixToPostfix(char *infixExpr) {
                 prevTokenIsOperator = true;
                 break;
             }
-            
+
             case '(':
                 CharList_add(stack, token);
                 isParentheses = true;
@@ -173,7 +173,7 @@ char* infixToPostfix(char *infixExpr) {
                 isParentheses = true;
                 break;
             }
-            
+
             default:
                 if (!isdigit(token) && token != '.') {
                     CharList_free(output);
