@@ -1612,15 +1612,16 @@ int processCommand(char *cmd) {
     //Check for semicolon operators
     char *semicolonChr = strchr(cmd, ';');
     if (semicolonChr != NULL) {
+        int exitStatus = 0;
         char *tempCmd = strdup(cmd);
         StringLinkedList *tokens = split(tempCmd, ";", NULL);
         for (StringNode *temp = tokens->head; temp != NULL; temp = temp->next) {
             trimWhitespaceFromEnds(temp->str);
-            (void) processAndCommands(temp->str);
+            exitStatus = processAndCommands(temp->str);
         }
         free(tempCmd);
         StringLinkedList_free(tokens);
-        return 0;
+        return exitStatus;
     }
 
     return processAndCommands(cmd);
@@ -1901,6 +1902,7 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
+    int exitStatus = 0;
     if (argc > 1) {
         FILE *fp = fopen(argv[1], "r");
         if (fp == NULL) {
@@ -1908,7 +1910,7 @@ int main(int argc, char *argv[]) {
             free(cmd);
             exit(1);
         }
-        (void) processFile(cmd, fp, processCommand, true);
+        exitStatus = processFile(cmd, fp, processCommand, true);
     } else {
         bool stdinFromTerminal = isatty(STDIN_FILENO);
         if (stdinFromTerminal) {
@@ -2046,6 +2048,9 @@ int main(int argc, char *argv[]) {
                             isBackgroundCmd = true;
                         } else {
                             int cmdStatus = processCommand(cmd);
+                            if (!stdinFromTerminal) {
+                                exitStatus = cmdStatus;
+                            }
                             if (cmdStatus == -1 && numBackgroundCmds == 0 && isBackgroundCmd) {
                                 //Syntax error with BACKGROUND_CHAR at end of command
                                 isBackgroundCmd = false;
@@ -2105,5 +2110,5 @@ int main(int argc, char *argv[]) {
     }
 
     free(cmd);
-    return 0;
+    return exitStatus;
 }
