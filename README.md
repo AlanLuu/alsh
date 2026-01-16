@@ -1,3 +1,5 @@
+**NOTE:** This repo is archived as of 01/16/2026. This was mainly a project for me to learn C and shells and unix syscalls and I have no further interest in diving back into this code. Don't actually try to use this in production - the code is bad, there's absolutely zero posix compatibility, and this project is practically a toy.
+
 # alsh
 A custom UNIX shell written in C
 
